@@ -40,7 +40,7 @@ def plot_waveform(track_id, waveform, sr):
 
     num_channels, num_frames = waveform.shape
     time_axis = torch.arange(0, num_frames) / sr
-
+    plt.figure()
     plt.plot(time_axis, waveform[0], linewidth=1)
     plt.grid(True)
     plt.ylabel("Amplitude")

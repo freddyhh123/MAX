@@ -3,7 +3,10 @@ import pandas as pd
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy_random import get_random
 
+import databaseConnector
+
 import spectrogram
+
 
 def getTracks():
     cid = "516f5defb70e4e0994acea4cc99d1d4c"
@@ -15,7 +18,7 @@ def getTracks():
 
     trackWithAudio = []
 
-    for i in range(100):
+    for i in range(5):
         try:
             track = get_random(spotify=sp, type="track")
         except:
@@ -70,6 +73,7 @@ def getTracks():
 
 
 tracks = getTracks()
+databaseConnector.addTracks(tracks)
 
             
 
