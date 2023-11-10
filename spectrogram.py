@@ -1,43 +1,57 @@
-import apicall
-import torch.nn
+import torch
+import torchaudio
 
-class SpectroPipeline(torch.nn.Module):
-    def __init__(
-        self,
-        input_freq=16000,
-        resample_freq=8000,
+import torchaudio.transforms as T
+import matplotlib.pyplot as plt
+
+import urllib.request
+
+import librosa
+
+def gen_spectrogram(compiledTrack):
+
+    urllib.request.urlretrieve(compiledTrack['preview_url'], "audio/" + str(compiledTrack['id']) + ".mp3")
+            
+    mel_spectrogram = torchaudio.transforms.MelSpectrogram(
+        sample_rate=16000,
         n_fft=1024,
-        n_mel=256,
-        stretch_factor=0.8,
-    ):
-        super().__init__()
-        self.resample = Resample(orig_freq=input_freq, new_freq=resample_freq)
+        hop_length=512,
+        n_mels=64
+    )
+    compiledTrack["mel_spectrogram"] = mel_spectrogram
 
-        self.spec = Spectrogram(n_fft=n_fft, power=2)
+    wav, sample_rate = torchaudio.load("audio/" + str(compiledTrack['id']) + ".mp3")
+    spectrogram = T.Spectrogram(n_fft=512)
+    spec = spectrogram(wav)
 
-        self.spec_aug = torch.nn.Sequential(
-            TimeStretch(stretch_factor, fixed_rate=True),
-            FrequencyMasking(freq_mask_param=80),
-            TimeMasking(time_mask_param=80),
-        )
+    compiledTrack["wav"] = wav
+    compiledTrack["spectrogram"] = spec
 
-        self.mel_scale = MelScale(
-            n_mels=n_mel, sample_rate=resample_freq, n_stft=n_fft // 2 + 1)
 
-    def forward(self, waveform: torch.Tensor) -> torch.Tensor:
-        # Resample the input
-        resampled = self.resample(waveform)
+    plot_waveform(compiledTrack['id'], wav, sample_rate)
+    plot_spectrogram(compiledTrack['id'], spec[0])
 
-        # Convert to power spectrogram
-        spec = self.spec(resampled)
+    return compiledTrack
 
-        # Apply SpecAugment
-        spec = self.spec_aug(spec)
 
-        # Convert to mel-scale
-        mel = self.mel_scale(spec)
 
-        return mel
+def plot_waveform(track_id, waveform, sr):
+    waveform = waveform.numpy()
 
-tracks = apicall.getTracks()
-tracks[0]
+    num_channels, num_frames = waveform.shape
+    time_axis = torch.arange(0, num_frames) / sr
+
+    plt.plot(time_axis, waveform[0], linewidth=1)
+    plt.grid(True)
+    plt.ylabel("Amplitude")
+    plt.xlabel("Time")
+    plt.savefig("images/wav/" + track_id + ".png", transparent=True)
+
+
+def plot_spectrogram(track_id, specgram):
+    plt.figure()
+    librosa.display.specshow(librosa.power_to_db(specgram))
+    plt.colorbar()
+    plt.ylabel("Frequency")
+    plt.xlabel("Time")
+    plt.savefig("images/spec/" + track_id + ".png", transparent=True)

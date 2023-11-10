@@ -1,17 +1,9 @@
 import spotipy
 import pandas as pd
 from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy_random import get_random
 
-import torch
-import torchaudio
-
-import urllib.request
-from pydub import AudioSegment
-
-import torchaudio.transforms as T
-import matplotlib.pyplot as plt
-
-import librosa
+import spectrogram
 
 def getTracks():
     cid = "516f5defb70e4e0994acea4cc99d1d4c"
@@ -20,90 +12,64 @@ def getTracks():
     client_credentials_manager = SpotifyClientCredentials(
     client_id=cid, client_secret=secret)
     sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager, requests_timeout=10, retries=10)
-    playlist_uri = 'spotify:playlist:44laAM2s0CKDb9AdBpKtfZ'
 
-    results = sp.playlist_items(playlist_uri)
     trackWithAudio = []
 
-    for entry in results['items'][:250]:
-        track = entry["track"]
+    for i in range(100):
+        try:
+            track = get_random(spotify=sp, type="track")
+        except:
+            print('Spotify done goofed, re-arm!')
+            track = get_random(spotify=sp, type="track")
+
         if track['preview_url']:
             compiledTrack = {}
-            compiledArtist = {}
+            compiledAlbum = {}
+            
             compiledTrack['album'] = {}
+
+            compiledArtists = [{}]
             compiledTrack['artists'] = []
+            compiledAlbum['artists'] = []
             for key, artist in enumerate(track['artists']):
+                compiledArtist = {}
+
                 compiledTrack["genres"] = sp.artist(artist["id"])["genres"]
 
                 compiledArtist["artist_url"] = artist['external_urls']['spotify']
                 compiledArtist["name"] = artist['name']
                 compiledArtist["id"] = artist['id']
-                compiledTrack["artists"].append(compiledArtist)
+
+                compiledArtists.append(compiledArtist)
+                compiledTrack["artists"].append(compiledArtist["id"])
 
             compiledTrack['name'] = track['name']
             compiledTrack['id'] = track['id']
-            compiledTrack['popularity'] = track['popularity']
+            compiledTrack['album'] = track['album']['id']
             compiledTrack['preview_url'] = track['preview_url']
             compiledTrack['spotify_url'] = track['external_urls']['spotify']
-            compiledTrack['spotify_id'] = track['uri']
             compiledTrack['features'] = sp.audio_features(track["id"])[0]
-
-            compiledTrack['explicit'] = track['explicit']
             
-            compiledTrack['album']['name'] = track['album']['name']
-            compiledTrack['album']['id'] = track['album']['id']
-            compiledTrack['album']['type'] = track['album']['album_type']
-            compiledTrack['album']['url'] = track['album']['external_urls']['spotify']
-            compiledTrack['album']['image'] = track['album']['images']
-            compiledTrack['album']['release_date'] = track['album']['release_date']
+            compiledAlbum['name'] = track['album']['name']
+            compiledAlbum['id'] = track['album']['id']
+            compiledAlbum['url'] = track['album']['external_urls']['spotify']
+            for key, artist in enumerate(track['album']['artists']):
+                if artist not in compiledArtists:
+                    compiledArtist = {}
+                    compiledArtist["artist_url"] = artist['external_urls']['spotify']
+                    compiledArtist["name"] = artist['name']
+                    compiledArtist["id"] = artist['id']
 
-            urllib.request.urlretrieve(compiledTrack['preview_url'], "audio/" + str(compiledTrack['id']) + ".mp3")
-            
-            mel_spectrogram = torchaudio.transforms.MelSpectrogram(
-                sample_rate=16000,
-                n_fft=1024,
-                hop_length=512,
-                n_mels=64
-            )
-            compiledTrack["mel_spectrogram"] = mel_spectrogram
+                    compiledArtists.append(compiledArtist)
+                compiledAlbum["artists"].append(compiledArtist["id"])
 
-            wav, sample_rate = torchaudio.load("audio/" + str(compiledTrack['id']) + ".mp3")
-            spectrogram = T.Spectrogram(n_fft=512)
-            spec = spectrogram(wav)
-
-            compiledTrack["wav"] = wav
-            compiledTrack["spectrogram"] = spec
-
-
-            plot_waveform(compiledTrack['id'], wav, sample_rate)
-            plot_spectrogram(compiledTrack['id'], spec[0])
+                compiledTrack = spectrogram.gen_spectrogram(compiledTrack)
             
             trackWithAudio.append(compiledTrack)
     return trackWithAudio
 
 
-def plot_waveform(track_id, waveform, sr):
-    waveform = waveform.numpy()
-
-    num_channels, num_frames = waveform.shape
-    time_axis = torch.arange(0, num_frames) / sr
-
-    plt.plot(time_axis, waveform[0], linewidth=1)
-    plt.grid(True)
-    plt.ylabel("Amplitude")
-    plt.xlabel("Time")
-    plt.savefig("images/wav/" + track_id + ".png", transparent=True)
-
-
-def plot_spectrogram(track_id, specgram):
-    plt.imshow(librosa.power_to_db(specgram), origin="lower", aspect="auto", interpolation="nearest")
-    plt.ylabel("Frequency")
-    plt.xlabel("Time")
-    plt.savefig("images/spec/" + track_id + ".png", transparent=True)
-
-
 tracks = getTracks()
-1 == 1
 
             
 
