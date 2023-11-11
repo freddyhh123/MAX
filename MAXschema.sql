@@ -7,7 +7,7 @@ CREATE TABLE `tracks` (
   `featureset_id` varchar(30),
   `time_added` timestamp,
   `trained` boolean,
-  `batch` varchar(30)
+  `batch` varchar(50)
 );
 
 CREATE TABLE `features` (
@@ -19,6 +19,7 @@ CREATE TABLE `features` (
   `mode` integer,
   `speechiness` integer,
   `acousticness` integer,
+  `instrumentalness` integer,
   `liveleness` integer,
   `valence` integer,
   `tempo` integer,
@@ -41,9 +42,7 @@ CREATE TABLE `genres` (
 CREATE TABLE `albums` (
   `album_id` varchar(30) PRIMARY KEY,
   `album_name` varchar(255),
-  `release_date` varchar(255),
-  `spotify_url` varchar(255),
-  `album_image` integer
+  `spotify_url` varchar(255)
 );
 
 CREATE TABLE `album_images` (
@@ -52,8 +51,6 @@ CREATE TABLE `album_images` (
   `image_height` integer,
   `image_width` integer
 );
-CREATE INDEX album_images_ibfk_1 ON Albums (album_image); 
-ALTER TABLE `album_images` ADD FOREIGN KEY (`image_id`) REFERENCES `albums` (`album_image`);
 
 
 CREATE TABLE `track_genres` (
@@ -65,24 +62,31 @@ ALTER TABLE `track_genres` ADD FOREIGN KEY (`track_id`) REFERENCES `tracks` (`tr
 
 
 CREATE TABLE `artists_tracks` (
-  `artist_id` varchar(255),
-  `track_id` varchar(255)
+  `artist_id` varchar(30),
+  `track_id` varchar(30)
 );
 ALTER TABLE `artists_tracks` ADD FOREIGN KEY (`artist_id`) REFERENCES `artists` (`artist_id`);
 ALTER TABLE `artists_tracks` ADD FOREIGN KEY (`track_id`) REFERENCES `tracks` (`track_id`);
 
 
 CREATE TABLE `artists_albums` (
-  `artist_id` varchar(255),
-  `album_id` varchar(255)
+  `artist_id` varchar(30),
+  `album_id` varchar(30)
 );
 ALTER TABLE `artists_albums` ADD FOREIGN KEY (`artist_id`) REFERENCES `artists` (`artist_id`);
 ALTER TABLE `artists_albums` ADD FOREIGN KEY (`album_id`) REFERENCES `albums` (`album_id`);
 
 
 CREATE TABLE `album_tracks` (
-  `track_id` varchar(255),
-  `album_id` varchar(255)
+  `track_id` varchar(30),
+  `album_id` varchar(30)
 );
 ALTER TABLE `album_tracks` ADD FOREIGN KEY (`track_id`) REFERENCES `tracks` (`track_id`);
 ALTER TABLE `album_tracks` ADD FOREIGN KEY (`album_id`) REFERENCES `albums` (`album_id`);
+
+CREATE TABLE `image_links` (
+  `album_id` varchar(30),
+  `image_id` integer
+);
+ALTER TABLE `image_links` ADD FOREIGN KEY (`album_id`) REFERENCES `albums` (`album_id`);
+ALTER TABLE `image_links` ADD FOREIGN KEY (`image_id`) REFERENCES `album_images` (`image_id`);

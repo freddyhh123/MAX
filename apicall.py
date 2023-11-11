@@ -18,7 +18,7 @@ def getTracks():
 
     trackWithAudio = []
 
-    for i in range(5):
+    while len(trackWithAudio) < 100:
         try:
             track = get_random(spotify=sp, type="track")
         except:
@@ -31,7 +31,7 @@ def getTracks():
             
             compiledTrack['album'] = {}
 
-            compiledArtists = [{}]
+            compiledArtists = []
             compiledTrack['artists'] = []
             compiledAlbum['artists'] = []
             for key, artist in enumerate(track['artists']):
@@ -40,33 +40,46 @@ def getTracks():
                 compiledTrack["genres"] = sp.artist(artist["id"])["genres"]
 
                 compiledArtist["artist_url"] = artist['external_urls']['spotify']
-                compiledArtist["name"] = artist['name']
-                compiledArtist["id"] = artist['id']
+                compiledArtist["artist_name"] = artist['name']
+                compiledArtist["artist_id"] = artist['id']
 
                 compiledArtists.append(compiledArtist)
-                compiledTrack["artists"].append(compiledArtist["id"])
+                compiledTrack["artists"].append(compiledArtist["artist_id"])
 
             compiledTrack['name'] = track['name']
             compiledTrack['id'] = track['id']
             compiledTrack['album'] = track['album']['id']
             compiledTrack['preview_url'] = track['preview_url']
             compiledTrack['spotify_url'] = track['external_urls']['spotify']
+
             compiledTrack['features'] = sp.audio_features(track["id"])[0]
-            
+            if not compiledTrack['features']:
+                continue
+            compiledTrack['features'].pop('type',None)
+            compiledTrack['features'].pop('id',None)
+            compiledTrack['features'].pop('track_href',None)
+            compiledTrack['features'].pop('analysis_url',None)
+            compiledTrack['features'].pop('time_signature',None)
+            compiledTrack['features'].pop('uri',None)
+
             compiledAlbum['name'] = track['album']['name']
             compiledAlbum['id'] = track['album']['id']
             compiledAlbum['url'] = track['album']['external_urls']['spotify']
+            compiledAlbum['images'] = track['album']['images']
             for key, artist in enumerate(track['album']['artists']):
                 if artist not in compiledArtists:
                     compiledArtist = {}
                     compiledArtist["artist_url"] = artist['external_urls']['spotify']
-                    compiledArtist["name"] = artist['name']
-                    compiledArtist["id"] = artist['id']
+                    compiledArtist["artist_name"] = artist['name']
+                    compiledArtist["artist_id"] = artist['id']
 
                     compiledArtists.append(compiledArtist)
-                compiledAlbum["artists"].append(compiledArtist["id"])
+                compiledAlbum["artists"].append(compiledArtist)
 
-                compiledTrack = spectrogram.gen_spectrogram(compiledTrack)
+                #compiledTrack = spectrogram.gen_spectrogram(compiledTrack)
+            
+            compiledTrack['album'] = compiledAlbum
+            compiledTrack['artists'] = compiledArtists
             
             trackWithAudio.append(compiledTrack)
     return trackWithAudio
@@ -74,6 +87,7 @@ def getTracks():
 
 tracks = getTracks()
 databaseConnector.addTracks(tracks)
+1==1
 
             
 
