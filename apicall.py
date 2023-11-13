@@ -22,7 +22,8 @@ def getTracks():
 
     batchId = str(uuid.uuid1())
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-    while len(trackWithAudio) < 5:
+    print("Batch id: " + batchId)
+    while len(trackWithAudio) < 25:
         try:
             track = get_random(spotify=sp, type="track")
         except:

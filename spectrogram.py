@@ -1,6 +1,8 @@
 import torch
 import torchaudio
 
+import numpy as np
+
 import torchaudio.transforms as T
 import matplotlib.pyplot as plt
 
@@ -15,18 +17,16 @@ def gen_spectrogram(compiledTrack):
         os.mkdir("audio/"+compiledTrack['batchId'])
 
     urllib.request.urlretrieve(compiledTrack['preview_url'], "audio/"+ compiledTrack['batchId'] +"/"+ str(compiledTrack['id']) + ".mp3")
-            
-    mel_spectrogram = torchaudio.transforms.MelSpectrogram(
-        sample_rate=16000,
-        n_fft=1024,
-        hop_length=512,
-        n_mels=64
-    )
-    compiledTrack["mel_spectrogram"] = mel_spectrogram
 
-    wav, sample_rate = torchaudio.load("audio/"+compiledTrack["batchId"] +"/"+ str(compiledTrack['id']) + ".mp3")
-    spectrogram = T.Spectrogram(n_fft=512)
-    spec = spectrogram(wav)
+    wav, sample_rate = torchaudio.load("audio/"+compiledTrack["batchId"] +"/"+ str(compiledTrack['id']) + ".mp3", normalize = True)
+
+    resample_rate = 16000
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 16000
+
+    transform = T.MelSpectrogram(sample_rate,n_mels=64)
+    spec = transform(wav)
 
     compiledTrack["wav"] = wav
     compiledTrack["spectrogram"] = spec
@@ -67,3 +67,4 @@ def plot_spectrogram(track_id, specgram,batchId):
     if not os.path.isdir("images/"+batchId+"/spec"):
         os.mkdir("images/"+batchId+"/spec/")
     plt.savefig("images/"+batchId+"/spec/" + track_id + ".png", transparent=True)
+    
