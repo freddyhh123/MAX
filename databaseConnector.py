@@ -1,6 +1,4 @@
 import mysql.connector
-import uuid
-import time
 
 db = mysql.connector.connect(
     host="localhost",
@@ -13,8 +11,8 @@ cursor = cursor = db.cursor()
 
 
 def addTracks(tracks):
-    batchId = str(uuid.uuid1())
     for track in tracks:
+        batchId = track['batchId']
         sql = "SELECT track_id FROM tracks WHERE track_id LIKE '" + \
             str(track['id']) + "'"
         cursor.execute(sql)
@@ -29,7 +27,7 @@ def addTracks(tracks):
 
             sql = "INSERT INTO tracks (track_id,track_name,preview_url,spotify_url,featureset_id,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
             values = (track['id'], track['name'], track['preview_url'], track['spotify_url'],
-                      track['id'], time.strftime('%Y-%m-%d %H:%M:%S'), False, batchId)
+                      track['id'], track['timestamp'], False, batchId)
             cursor.execute(sql, values)
             print("Added " + str(track['name'] + " to track table"))
 
