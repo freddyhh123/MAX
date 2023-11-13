@@ -2,6 +2,8 @@ import spotipy
 import pandas as pd
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy_random import get_random
+import uuid
+import time
 
 import databaseConnector
 
@@ -18,7 +20,9 @@ def getTracks():
 
     trackWithAudio = []
 
-    while len(trackWithAudio) < 100:
+    batchId = str(uuid.uuid1())
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    while len(trackWithAudio) < 5:
         try:
             track = get_random(spotify=sp, type="track")
         except:
@@ -45,6 +49,8 @@ def getTracks():
 
                 compiledArtists.append(compiledArtist)
                 compiledTrack["artists"].append(compiledArtist["artist_id"])
+
+            compiledTrack['timestamp'] = timestamp
 
             compiledTrack['name'] = track['name']
             compiledTrack['id'] = track['id']
@@ -76,7 +82,8 @@ def getTracks():
                     compiledArtists.append(compiledArtist)
                 compiledAlbum["artists"].append(compiledArtist)
 
-                #compiledTrack = spectrogram.gen_spectrogram(compiledTrack)
+                compiledTrack['batchId'] = batchId
+                compiledTrack = spectrogram.gen_spectrogram(compiledTrack)
             
             compiledTrack['album'] = compiledAlbum
             compiledTrack['artists'] = compiledArtists
@@ -87,11 +94,3 @@ def getTracks():
 
 tracks = getTracks()
 databaseConnector.addTracks(tracks)
-1==1
-
-            
-
-
-
-
-
