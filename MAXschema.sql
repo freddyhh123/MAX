@@ -12,18 +12,18 @@ CREATE TABLE `tracks` (
 
 CREATE TABLE `features` (
   `featureset_id` varchar(30) PRIMARY KEY,
-  `danceability` integer,
-  `energy` integer,
-  `key` integer,
-  `loudness` integer,
-  `mode` integer,
-  `speechiness` integer,
-  `acousticness` integer,
-  `instrumentalness` integer,
-  `liveleness` integer,
-  `valence` integer,
-  `tempo` integer,
-  `duration` integer
+  `danceability` float,
+  `energy` float,
+  `key` float,
+  `loudness` float,
+  `mode` float,
+  `speechiness` float,
+  `acousticness` float,
+  `instrumentalness` float,
+  `liveleness` float,
+  `valence` float,
+  `tempo` float,
+  `duration` float
 );
 ALTER TABLE `tracks` ADD FOREIGN KEY (`featureset_id`) REFERENCES `features` (`featureset_id`);
 
