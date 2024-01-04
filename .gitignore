@@ -164,3 +164,7 @@ cython_debug/
 
 *.wav
 *.png
+*.csv
+
+/fma_data*
+/data/*
