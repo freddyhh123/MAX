@@ -4,6 +4,8 @@ import torchaudio
 import numpy as np
 
 import torchaudio.transforms as T
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import urllib.request
@@ -12,30 +14,47 @@ import librosa
 
 import os
 
-def gen_spectrogram(compiledTrack):
-    if not os.path.isdir("audio/"+compiledTrack["batchId"]):
-        os.mkdir("audio/"+compiledTrack['batchId'])
+from databaseConfig import connect
 
-    urllib.request.urlretrieve(compiledTrack['preview_url'], "audio/"+ compiledTrack['batchId'] +"/"+ str(compiledTrack['id']) + ".mp3")
+db = connect()
+cursor = cursor = db.cursor()
 
-    wav, sample_rate = torchaudio.load("audio/"+compiledTrack["batchId"] +"/"+ str(compiledTrack['id']) + ".mp3", normalize = True)
 
-    resample_rate = 16000
+def gen_spectrogram(track_id):
+    query = "SELECT * FROM tracks WHERE track_id = %s"
+    values = (track_id,)
+    cursor.execute(query, values)
+
+    track = cursor.fetchone()
+
+    wav, sample_rate = torchaudio.load(track[2], normalize = True)
+
+    resample_rate = 44100
     resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
     wav = resampler(wav)
-    sample_rate = 16000
+    sample_rate = 44100
 
-    transform = T.MelSpectrogram(sample_rate,n_mels=64)
+    transform = T.MelSpectrogram(sample_rate,n_mels = 128, n_fft = 2048)
     spec = transform(wav)
 
-    compiledTrack["wav"] = wav
-    compiledTrack["spectrogram"] = spec
 
+    #plot_waveform(track[0], wav, sample_rate, track[5])
+    #plot_spectrogram(track[0], spec[0], track[5])
+    return spec
 
-    plot_waveform(compiledTrack['id'], wav, sample_rate, compiledTrack["batchId"])
-    plot_spectrogram(compiledTrack['id'], spec[0], compiledTrack["batchId"])
+def gen_central_spectroid(track_id):
+    query = "SELECT * FROM tracks WHERE track_id = %s"
+    values = (track_id,)
+    cursor.execute(query, values)
+    track = cursor.fetchone()
+    wav, sample_rate = librosa.load(track[2])
+    resample_rate = 44100
+    wav = librosa.resample(wav, orig_sr=sample_rate, target_sr=resample_rate)
+    sample_rate = 44100
+    centroid = librosa.feature.spectral_centroid(y=wav, sr=sample_rate, n_fft=2048, hop_length= (2048//4))
+    centroid = centroid[:, :2580]
 
-    return compiledTrack
+    return torch.tensor(centroid)
 
 
 

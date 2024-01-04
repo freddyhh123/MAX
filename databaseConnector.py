@@ -7,47 +7,66 @@ db = connect()
 cursor = cursor = db.cursor()
 
 
+def checkExisting(table, key, value):
+    sql = "SELECT * FROM " + table + " WHERE "+ key + " = %s"
+    values = (value, )
+    cursor.execute(sql, values)
+    existing = cursor.fetchall()
+    if existing:
+        return True
+    else:
+        return False
+
 def addTracks(tracks):
     for track in tracks:
         batchId = track['batchId']
-        sql = "SELECT track_id FROM tracks WHERE track_id = %s"
-        values = (track['id'], )
-        cursor.execute(sql, values)
-        existing = cursor.fetchall()
 
-        if not existing:
-            sql = "INSERT INTO features (featureset_id, danceability, energy, `key`, loudness, mode, speechiness, acousticness, instrumentalness, liveleness, valence, tempo, duration) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (track['id'], track['features']['danceability'], track['features']['energy'], track['features']['key'],
-                      track['features']['loudness'], track['features']['mode'], track['features']['speechiness'], track['features']['acousticness'],
-                      track['features']['instrumentalness'], track['features']['liveness'], track['features']['valence'], track['features']['tempo'], track['features']['duration_ms'])
+        track_existing = checkExisting("tracks", "track_id", track['id'])
+
+        if not track_existing:
+            sql = "INSERT INTO features (featureset_id, danceability, energy, speechiness, acousticness, instrumentalness, liveleness, valence, tempo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (track['id'], track['features']['danceability'], track['features']['energy'],
+                      track['features']['speechiness'], track['features']['acousticness'],
+                      track['features']['instrumentalness'], track['features']['liveness'], track['features']['valence'], track['features']['tempo'])
             cursor.execute(sql, values)
 
-            sql = "INSERT INTO tracks (track_id,track_name,preview_url,spotify_url,featureset_id,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
-            values = (track['id'], track['name'], track['preview_url'], track['spotify_url'],
-                      track['id'], track['timestamp'], False, batchId)
+            sql = "INSERT INTO tracks (track_id,track_name,file_path,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s)"
+            values = (track['id'], track['name'], track['file_path'], track['timestamp'], False, batchId)
             cursor.execute(sql, values)
             print("Added " + str(track['name'] + " to track table"))
 
-            sql = "INSERT INTO artists_tracks VALUES (%s,%s)"
-            values = (artist["artist_id"], track['id'])
-            cursor.execute(sql, values)
 
-            sql = "INSERT INTO track_genres (track_id, genre_id) VALUES (%s, %s)"
-            values = (track['id'], rowid[0])
-            cursor.execute(sql, values)
+            artist_existing = checkExisting("artists","artist_id",track['artist'])
+            if artist_existing:
+                sql = "INSERT INTO artists_tracks (artist_id, track_id) VALUES (%s,%s)"
+                values = (track["artist"], track['id'])
+                cursor.execute(sql, values)
+            else:
+                sql = "INSERT INTO artists_tracks (artist_id, track_id) VALUES (%s, %s)"
+                values = (101010, track['id'])
+                cursor.execute(sql, values)
 
-            sql = "INSERT INTO album_tracks (track_id, album_id) VALUES (%s, %s)"
-            values = (track['id'], track['album']['id'])
-            cursor.execute(sql, values)
+            for genre in track['genres']:
+                sql = "INSERT INTO track_genres (track_id, genre_id) VALUES (%s, %s)"
+                values = (track['id'], genre[0])
+                cursor.execute(sql, values)
+
+
+            album_existing = checkExisting("albums", "album_id", track['album'])
+            if album_existing:
+                sql = "INSERT INTO album_tracks (track_id, album_id) VALUES (%s, %s)"
+                values = (track['id'], track['album'])
+                cursor.execute(sql, values)
+            else:
+                sql = "INSERT INTO album_tracks (track_id, album_id) VALUES (%s, %s)"
+                values = (track['id'], 101010)
+                cursor.execute(sql, values)
 
         db.commit()
 
 
 def addArtist(id, name, url):
-    sql = "SELECT * FROM artists WHERE artist_id = %s"
-    values = (id, )
-    cursor.execute(sql, values)
-    existing = cursor.fetchall()
+    existing = checkExisting("artists", "artist_id", id)
     if not existing:
         sql = "INSERT INTO artists VALUES (%s,%s,%s)"
         values = (id, name, url)
@@ -67,9 +86,13 @@ def populateGenreTable():
                 sql = "INSERT INTO genres (genre_id, genre_parent, top_genre, genre_name) VALUES (%s,%s,%s,%s)"
                 values = (genre[0],genre[2],genre[4],genre[3])
                 cursor.execute(sql, values)
+    print("Genres added")
     db.commit()
 
 def populateAlbumTable():
+    sql = "INSERT INTO albums (album_id, album_link, album_name) VALUES (%s,%s,%s)"
+    values = (101010, "", "Unknown")
+    cursor.execute(sql, values)
     with open('fma_data/raw_albums.csv', 'r',encoding='utf-8') as albums:
         reader = csv.reader(albums)
         next(reader)
@@ -88,9 +111,13 @@ def populateAlbumTable():
                     sql = "INSERT INTO artists_albums (artist_id, album_id) VALUES (%s,%s)"
                     values = (exists[0], album[0])
                     cursor.execute(sql, values)
+    print("Albums Added")
     db.commit()
 
 def populateArtistTable():
+    sql = "INSERT INTO artists (artist_id, artist_name, artist_url) VALUES (%s,%s,%s)"
+    values = (101010, "Unknown","https://freemusicarchive.org/")
+    cursor.execute(sql, values)
     with open('fma_data/raw_artists.csv', 'r',encoding='utf-8') as artists:
         reader = csv.reader(artists)
         next(reader)
@@ -103,4 +130,5 @@ def populateArtistTable():
                 sql = "INSERT INTO artists (artist_id, artist_name, artist_url) VALUES (%s,%s,%s)"
                 values = (artist[0], artist[11], artist[21])
                 cursor.execute(sql, values)
+    print("Artists Added")
     db.commit()

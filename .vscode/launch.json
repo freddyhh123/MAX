@@ -10,7 +10,15 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": false
+        },
+        {
+            "name": "Main Init",
+            "type": "python",
+            "request": "launch",
+            "program": "init.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

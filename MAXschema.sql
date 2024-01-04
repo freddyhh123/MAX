@@ -6,7 +6,6 @@ CREATE TABLE `tracks` (
   `track_id` varchar(30) PRIMARY KEY,
   `track_name` varchar(255),
   `file_path` varchar(255),
-  `featureset_id` varchar(30),
   `time_added` timestamp,
   `trained` boolean,
   `batch` varchar(50)
@@ -16,7 +15,6 @@ CREATE TABLE `features` (
   `featureset_id` varchar(30) PRIMARY KEY,
   `danceability` float,
   `energy` float,
-  `loudness` float,
   `speechiness` float,
   `acousticness` float,
   `instrumentalness` float,
@@ -24,7 +22,6 @@ CREATE TABLE `features` (
   `valence` float,
   `tempo` float
 );
-ALTER TABLE `tracks` ADD FOREIGN KEY (`featureset_id`) REFERENCES `features` (`featureset_id`);
 
 CREATE TABLE `artists` (
   `artist_id` varchar(30) PRIMARY KEY,
@@ -41,7 +38,7 @@ CREATE TABLE `genres` (
 
 CREATE TABLE `albums` (
   `album_id` varchar(30) PRIMARY KEY,
-  `album_image` varchar(255),
+  `album_link` varchar(255),
   `album_name` varchar(255)
 );
 
