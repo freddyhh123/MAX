@@ -4,6 +4,7 @@ import torchaudio
 import numpy as np
 
 import torchaudio.transforms as T
+from torchaudio.transforms import MFCC
 #import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -34,27 +35,33 @@ def gen_spectrogram(track_id):
     wav = resampler(wav)
     sample_rate = 44100
 
-    transform = T.MelSpectrogram(sample_rate,n_mels = 128, n_fft = 2048)
+    transform = T.MelSpectrogram(sample_rate,n_mels = 128, n_fft = 2048,hop_length = 512)
     spec = transform(wav)
 
+    spec = torch.log(spec + 1e-6)
 
     #plot_waveform(track[0], wav, sample_rate, track[5])
     #plot_spectrogram(track[0], spec[0], track[5])
     return spec
 
-def gen_central_spectroid(track_id):
+def gen_mffc(track_id):
     query = "SELECT * FROM tracks WHERE track_id = %s"
     values = (track_id,)
     cursor.execute(query, values)
-    track = cursor.fetchone()
-    wav, sample_rate = librosa.load(track[2])
-    resample_rate = 44100
-    wav = librosa.resample(wav, orig_sr=sample_rate, target_sr=resample_rate)
-    sample_rate = 44100
-    centroid = librosa.feature.spectral_centroid(y=wav, sr=sample_rate, n_fft=2048, hop_length= (2048//4))
-    centroid = centroid[:, :2580]
 
-    return torch.tensor(centroid)
+    track = cursor.fetchone()
+
+    wav, sample_rate = torchaudio.load(track[2], normalize = True)
+
+    resample_rate = 44100
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 44100
+
+    mfcc_transform = MFCC(sample_rate=sample_rate, n_mfcc=13, melkwargs={'hop_length': 512, 'n_fft': 2048})
+    mfccs = mfcc_transform(wav)
+
+    return mfccs
 
 
 

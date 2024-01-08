@@ -24,11 +24,20 @@ def get_top_genres(track_id, track_genres, genre_to_top_genre):
     return list(top_genres)
 
 def buildDataframe():
-    query = "SELECT * FROM tracks LIMIT 1"
+    query = "SELECT * FROM tracks LIMIT 10"
     tracks = pd.read_sql(query, db)
     tracks['top_genres'] = np.nan
     tracks['spectrogram'] = np.nan
-    tracks['spectral_centroid'] = np.nan
+    tracks['mfcc'] = np.nan
+    tracks = tracks.drop(tracks[tracks['track_id'] == '11583'].index)
+    tracks = tracks.drop(tracks[tracks['track_id'] == '25173'].index)
+    tracks = tracks.drop(tracks[tracks['track_id'] == '25174'].index)
+
+    bad_tracks = pd.read_csv('bad_files.csv')
+    bad_tracks['file'] = bad_tracks['file'].astype(str).str.split('.').str[0]
+    bad_tracks['file'] = bad_tracks['file'].astype(str).str.lstrip('0')
+    bad_track_ids = bad_tracks[bad_tracks['file'].isin(tracks['track_id'])]
+    tracks = tracks[~tracks['track_id'].isin(bad_track_ids['file'])]
 
     query = "SELECT genre_id FROM genres WHERE genre_parent = 0"
     cursor.execute(query)
@@ -49,7 +58,9 @@ def buildDataframe():
 
     tracks['spectrogram'] = tracks['track_id'].apply(featureExtraction.gen_spectrogram)
 
-    tracks['spectral_centroid'] = tracks['track_id'].apply(featureExtraction.gen_central_spectroid)
+    tracks['mfcc'] = tracks['track_id'].apply(featureExtraction.gen_mffc)
+    
+    print("Dataset finished")
 
     return tracks
     

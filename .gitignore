@@ -161,6 +161,7 @@ cython_debug/
 
 /audio
 /images
+/.idea
 
 *.wav
 *.png
@@ -168,3 +169,6 @@ cython_debug/
 
 /fma_data*
 /data/*
+
+*.pkl
+*.pth
