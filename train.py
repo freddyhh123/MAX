@@ -97,8 +97,14 @@ for epoch in num_epochs:
                 "train_loss": None         
             }
             results.append(result)
+            print("Finished Learning rate: " + learning_rate)
+        print("Finished batch_size: "+ batch_size)
         results_dataframe = pd.DataFrame(results)
         results_dataframe.to_csv('results.csv')
+    print("Finished epoch: "+ epoch)
+
+results_dataframe = pd.DataFrame(results)
+results_dataframe.to_csv('results.csv')
             
 
 
