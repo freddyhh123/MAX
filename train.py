@@ -49,6 +49,7 @@ else:
     with open('tracks.pkl', 'rb') as file:
         track_dataframe = pickle.load(file)
 
+
 rows_with_na = track_dataframe.isna().any(axis=1)
 na_rows_exist = rows_with_na.any()
 if na_rows_exist:
@@ -67,7 +68,6 @@ results = []
 for epoch in num_epochs:
     for batch_size in batch_sizes:
         for learning_rate in learning_rates:
-
             train_df, test_df = train_test_split(dataset, test_size=0.2, train_size=0.8, random_state=666)
             #test_df, validation_df = train_test_split(test_df, test_size=0.5, train_size=0.5, random_state=666)
 
@@ -81,33 +81,12 @@ for epoch in num_epochs:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             model.to(device)
 
-            train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, 50)
+            train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, epoch)
 
-            result = {
-                "epoch": epoch,
-                "batch_size": batch_size,
-                "learning_rate": learning_rate,
-                "val_accuracy": None,  
-                "val_loss": None,      
-                "f1_macro": None,      
-                "f1_micro": None,      
-                "hamming_loss": None,  
-                "subset_accuracy": None,  
-                "train_accuracy": None,   
-                "train_loss": None         
-            }
-            results.append(result)
-            print("Finished Learning rate: " + learning_rate)
-        print("Finished batch_size: "+ batch_size)
-        results_dataframe = pd.DataFrame(results)
-        results_dataframe.to_csv('results.csv')
-    print("Finished epoch: "+ epoch)
-
-results_dataframe = pd.DataFrame(results)
-results_dataframe.to_csv('results.csv')
-            
-
-
-    
-
-
+            train_results_dataframe = pd.DataFrame(train_results)
+            val_results_dataframe = pd.DataFrame(val_results)
+            train_results_dataframe.to_csv(str(epoch)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+'train_results.csv')
+            val_results_dataframe.to_csv(str(epoch)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+'val_results.csv')
+            print("Finished Learning rate: " + str(learning_rate))
+        print("Finished batch_size: "+ str(batch_size))
+    print("Finished epoch: "+ str(epoch))

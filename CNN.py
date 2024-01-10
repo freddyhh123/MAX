@@ -37,7 +37,7 @@ class topGenreClassifier(nn.Module):
             num_features *= s
         return num_features
     
-def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device):
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
     overall_val_loss = list()
@@ -47,8 +47,10 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
     subset_accuracy = list()
     epoch_train_accuracy = list()
     epoch_validation_accuracy = list()
+    model.to(device)
 
     for epoch in range(num_epochs):
+        print("Training started")
         training_loss = 0.0
         validation_loss = 0.0
         correct_train = 0.0
@@ -57,6 +59,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         total_val = 0.0
         model.train()
         for inputs, labels in train_loader:
+            inputs,labels = inputs.to(device), labels.to(device)
             labels = labels.float()
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -83,6 +86,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         model.eval()
         with torch.no_grad():
             for inputs, labels in valid_loader:
+                inputs,labels = inputs.to(device), labels.to(device)
                 labels = labels.float()
                 outputs = model(inputs)
 
@@ -97,10 +101,17 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
                 loss = criterion(outputs, labels)
                 validation_loss += loss.item()
             
-            f1_macro_scores.append(f1_score(labels, predictions, average='macro'))
-            f1_micro_scores.append(f1_score(labels, predictions, average='micro'))
-            hammingloss.append(hamming_loss(labels, predictions))
-            subset_accuracy.append(accuracy_score(labels, predictions))
+            if device.type == "cuda":
+                f1_macro_scores.append(f1_score(labels.cpu(), predictions.cpu(), average='macro'))
+                f1_micro_scores.append(f1_score(labels.cpu(), predictions.cpu(), average='micro'))
+                hammingloss.append(hamming_loss(labels.cpu(), predictions.cpu()))
+                subset_accuracy.append(accuracy_score(labels.cpu(), predictions.cpu()))
+            else:
+                f1_macro_scores.append(f1_score(labels, predictions, average='macro'))
+                f1_micro_scores.append(f1_score(labels, predictions, average='micro'))
+                hammingloss.append(hamming_loss(labels, predictions))
+                subset_accuracy.append(accuracy_score(labels, predictions))
+
             overall_val_loss.append(validation_loss / len(valid_loader))
             epoch_validation_accuracy.append(val_accuracy)
 
