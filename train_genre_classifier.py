@@ -42,7 +42,7 @@ def resize_collate(batch):
     return features_batch, labels
 
 if not os.path.exists("tracks.pkl"):
-    track_dataframe = prepareDataset.buildDataframe()
+    track_dataframe = prepareDataset.buildDataframe("genre")
     with open('tracks.pkl', 'wb') as file:
         pickle.dump(track_dataframe, file)
 else:

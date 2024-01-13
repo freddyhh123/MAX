@@ -5,8 +5,8 @@ import numpy as np
 
 import torchaudio.transforms as T
 from torchaudio.transforms import MFCC
-#import matplotlib
-#matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import urllib.request
@@ -16,6 +16,8 @@ import librosa
 import os
 
 from databaseConfig import connect
+
+import uuid
 
 db = connect()
 cursor = cursor = db.cursor()
@@ -63,6 +65,34 @@ def gen_mffc(track_id):
 
     return mfccs
 
+def gen_spectrogram_path(file_path):
+    file_id = uuid.uuid4()
+    wav, sample_rate = torchaudio.load(file_path, normalize = True)
+
+    resample_rate = 44100
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 44100
+
+    transform = T.MelSpectrogram(sample_rate,n_mels = 128, n_fft = 2048,hop_length = 512)
+    spec = transform(wav)
+    plot_spectrogram(file_id, spec)
+    spec_noramlised = torch.log(spec + 1e-6)
+    return spec_noramlised, file_id
+
+def gen_mffc_path(file_path):
+    wav, sample_rate = torchaudio.load(file_path, normalize = True)
+
+    resample_rate = 44100
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 44100
+
+    mfcc_transform = MFCC(sample_rate=sample_rate, n_mfcc=13, melkwargs={'hop_length': 512, 'n_fft': 2048})
+    mfccs = mfcc_transform(wav)
+
+    return mfccs
+
 
 
 def plot_waveform(track_id, waveform, sr,batchId):
@@ -82,15 +112,18 @@ def plot_waveform(track_id, waveform, sr,batchId):
     plt.savefig("images/"+batchId+"/wav/" + track_id + ".png", transparent=True)
 
 
-def plot_spectrogram(track_id, specgram,batchId):
-    plt.figure()
-    librosa.display.specshow(librosa.power_to_db(specgram))
-    plt.colorbar()
-    plt.ylabel("Frequency")
-    plt.xlabel("Time")
-    if not os.path.isdir("images/"+batchId):
-        os.mkdir("images/"+batchId)
-    if not os.path.isdir("images/"+batchId+"/spec"):
-        os.mkdir("images/"+batchId+"/spec/")
-    plt.savefig("images/"+batchId+"/spec/" + track_id + ".png", transparent=True)
+def plot_spectrogram(track_id, specgram):
+    if not isinstance(specgram, np.ndarray):
+        specgram = np.array(specgram)
+    combined_specgram = np.mean(specgram, axis=0)
+    plt.figure(figsize=(10, 6), facecolor='none', edgecolor='none')
+    librosa.display.specshow(librosa.power_to_db(combined_specgram, ref=np.max),
+                             y_axis='mel', fmax=8000, x_axis='time', sr=44100)
+    plt.tight_layout()
+    plt.xlabel("Time",color='white')
+    plt.ylabel("Hz", color='white')
+    plt.xticks(color='white')
+    plt.yticks(color='white')
+    plt.gca().set_facecolor('none')
+    plt.savefig("static/images/" + str(track_id) + ".png", transparent=True)
     
