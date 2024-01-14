@@ -41,12 +41,8 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         validation_loss = 0.0
         model.train()
         for inputs, labels in train_loader:
-            labels = torch.stack(labels)
             inputs, labels = inputs.to(device).float(), labels.to(device).float()
             optimizer.zero_grad()
-            labels = labels.view(1,8)
-            if inputs.shape[1] == 1:
-                inputs = inputs.repeat(1, 2, 1, 1)
             outputs = model(inputs).float()
             loss = criterion(outputs, labels)
             loss.backward()
@@ -60,9 +56,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         model.eval()
         with torch.no_grad():
             for inputs, labels in valid_loader:
-                labels = torch.stack(labels)
                 inputs, labels = inputs.to(device).float(), labels.to(device).float()
-                labels = labels.view(1,8)
                 if inputs.shape[1] == 1:
                     inputs = inputs.repeat(1, 2, 1, 1)
                 outputs = model(inputs).float()

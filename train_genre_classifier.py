@@ -5,8 +5,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn as nn
-from CNN import topGenreClassifier
-from CNN import train_model
+from genreModel import topGenreClassifier
+from genreModel import train_model
 import torch.cuda
 from torch.nn.functional import pad
 import os

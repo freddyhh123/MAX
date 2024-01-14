@@ -26,6 +26,33 @@ def normalize_tempo(split):
         normalized_data.append((tensor_data, normalized_scalar_values))
     
     return(normalized_data, min_tempo, max_tempo)
+
+def resize_collate(batch):
+    processed_features = []
+    labels = []
+
+    for features, label in batch:
+        # Handle features
+        current_size = features.shape[2]
+        if current_size < 2580:
+            # Pad the features tensor
+            padding_needed = 2580 - current_size
+            features = pad(features, (0, padding_needed), "constant", 0)
+        elif current_size > 2580:
+            # Trim the features tensor
+            features = features[:, :, :2580]
+        elif features.shape[0] == 1:
+            features = features.repeat(2, 1, 1)
+        processed_features.append(features)
+
+        # Handle labels
+        labels.append(torch.tensor(label))
+        #labels.append(label)
+
+    labels = torch.stack(labels)
+    features_batch = torch.stack(processed_features)
+
+    return features_batch, labels
     
 
 if not os.path.exists("tracks_features.pkl"):
@@ -49,9 +76,9 @@ track_dataframe.reset_index(drop=True, inplace=True)
 
 dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['features'])
 
-batch_sizes = [1,10,50]
+batch_sizes = [10,50]
 learning_rates = [0.0001,0.001,0.01,0.1,0.25]
-num_epochs = [25,50,100,250,500,1000]
+num_epochs = [5,25,50,100,250,500,1000]
 results = []
 
 for epoch in num_epochs:
@@ -69,9 +96,8 @@ for epoch in num_epochs:
                 "val_min" : val_min
             }
 
-            batch_size = batch_size
-            train_loader = DataLoader(train_df, batch_size = batch_size, shuffle=True)
-            test_loader = DataLoader(test_df, batch_size = batch_size, shuffle=False)
+            train_loader = DataLoader(train_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=True)
+            test_loader = DataLoader(test_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=False)
 
             model = audioFeatureModel()
             optimizer = optim.Adam(model.parameters(), lr=learning_rate)
