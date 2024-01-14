@@ -76,9 +76,9 @@ track_dataframe.reset_index(drop=True, inplace=True)
 
 dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['features'])
 
-batch_sizes = [10,50]
+batch_sizes = [10,25,50]
 learning_rates = [0.0001,0.001,0.01,0.1,0.25]
-num_epochs = [5,25,50,100,250,500,1000]
+num_epochs = [25,50,100,250,500,1000]
 results = []
 
 for epoch in num_epochs:

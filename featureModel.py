@@ -16,18 +16,16 @@ class audioFeatureModel(nn.Module):
         self.bn3 = nn.BatchNorm2d(64)
         self.pool = nn.MaxPool2d(2, 2)
         
-        self.fc1 = nn.Linear(64 * 17 * 322, 256)
-        self.fc2 = nn.Linear(256, num_features)
+        self.fc_layers = nn.ModuleList([nn.Linear(64 * 17 * 322, 1) for _ in range(num_features)])
 
     def forward(self, x):
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
         x = self.pool(F.relu(self.bn2(self.conv2(x))))
         x = self.pool(F.relu(self.bn3(self.conv3(x))))
         x = x.view(-1, 64 * 17 * 322)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        x = F.relu(x)
-        return x
+        
+        outputs = [fc(x) for fc in self.fc_layers]
+        return torch.cat(outputs, dim=1)
     
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device, normalization_values):
@@ -57,8 +55,6 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         with torch.no_grad():
             for inputs, labels in valid_loader:
                 inputs, labels = inputs.to(device).float(), labels.to(device).float()
-                if inputs.shape[1] == 1:
-                    inputs = inputs.repeat(1, 2, 1, 1)
                 outputs = model(inputs).float()
                 loss = criterion(outputs, labels)
                 validation_loss += loss.item()
