@@ -66,7 +66,7 @@ for idx, file_name in enumerate(files):
     if extension != ".pkl":
         continue
 
-    track_dataframe = pd.read_pickle(file_name)
+    track_dataframe = pd.read_pickle(os.path.join(folder_path, file_name))
 
     print("Analysing file: " + str(file_name) + "File no: "+ str(idx) +"/"+ str(len(files)))
     print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
