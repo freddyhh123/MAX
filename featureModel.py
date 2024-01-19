@@ -34,12 +34,6 @@ def save_ckp(state, is_best):
         best_fpath = 'max_feature_best_model.pt'
         shutil.copyfile(f_path, best_fpath)
 
-def load_ckp(checkpoint_fpath, model, optimizer):
-    checkpoint = torch.load(checkpoint_fpath)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-    return model, optimizer, checkpoint['epoch']
-    
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device, normalization_values):
     overall_train_loss = list()
