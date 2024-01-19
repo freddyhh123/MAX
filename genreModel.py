@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from sklearn.metrics import f1_score, accuracy_score, hamming_loss
 import pandas as pd
 import numpy as np
+import shutil
 
 class topGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
@@ -36,7 +37,21 @@ class topGenreClassifier(nn.Module):
         for s in size:
             num_features *= s
         return num_features
+
+def save_ckp(state, is_best):
+    f_path = 'max_feature_checkpoint.pt'
+    torch.save(state, f_path)
+    if is_best:
+        best_fpath = 'max_feature_best_model.pt'
+        shutil.copyfile(f_path, best_fpath)
+
+def load_ckp(checkpoint_fpath, model, optimizer):
+    checkpoint = torch.load(checkpoint_fpath)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return model, optimizer
     
+
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device):
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
@@ -129,5 +144,9 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         'hamming_loss' : hammingloss,
         'subset_accuracy' : subset_accuracy
     })
-    torch.save(model.state_dict(), 'max_v1.pth')
+    checkpoint = {
+    'state_dict': model.state_dict(),
+    'optimizer': optimizer.state_dict()
+    }
+    save_ckp(checkpoint, False)
     return(train_results, val_results)

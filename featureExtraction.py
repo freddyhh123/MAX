@@ -42,8 +42,6 @@ def gen_spectrogram(track_id):
 
     spec = torch.log(spec + 1e-6)
 
-    #plot_waveform(track[0], wav, sample_rate, track[5])
-    #plot_spectrogram(track[0], spec[0], track[5])
     return spec
 
 def gen_mffc(track_id):

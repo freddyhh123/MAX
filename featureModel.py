@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import numpy as np
-
+import shutil
 
 class audioFeatureModel(nn.Module):
     def __init__(self, input_channels=2, num_features=8):
@@ -26,6 +26,19 @@ class audioFeatureModel(nn.Module):
         
         outputs = [fc(x) for fc in self.fc_layers]
         return torch.cat(outputs, dim=1)
+    
+def save_ckp(state, is_best):
+    f_path = 'max_feature_checkpoint.pt'
+    torch.save(state, f_path)
+    if is_best:
+        best_fpath = 'max_feature_best_model.pt'
+        shutil.copyfile(f_path, best_fpath)
+
+def load_ckp(checkpoint_fpath, model, optimizer):
+    checkpoint = torch.load(checkpoint_fpath)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return model, optimizer, checkpoint['epoch']
     
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device, normalization_values):
@@ -67,5 +80,10 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
     val_results = pd.DataFrame({
         'val_loss': overall_val_loss
     })
-    torch.save(model.state_dict(), 'max_v1.pth')
+    checkpoint = {
+    'epoch': epoch + 1,
+    'state_dict': model.state_dict(),
+    'optimizer': optimizer.state_dict()
+    }
+    save_ckp(checkpoint, False)
     return(train_results, val_results)

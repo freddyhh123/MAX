@@ -58,7 +58,7 @@ if na_rows_exist:
 
 track_dataframe.reset_index(drop=True, inplace=True)
 
-dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['genre_vector'])
+dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['genre_vector'], id = track_dataframe['track_id'])
 
 batch_sizes = [1,10,50,100,250,500]
 learning_rates = [0.0001,0.001,0.01,0.1,0.25]
