@@ -55,8 +55,8 @@ def load_ckp(checkpoint_fpath, model, optimizer):
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
     return model, optimizer
-    
 
+prepareDataset.buildDataframe("features", True)
 folder_path = 'track_files'
 files = os.listdir(folder_path)
 
@@ -78,7 +78,7 @@ for idx, file_name in enumerate(files):
         print(str(rows_with_na_df)+" rows with missing data")
 
     batch_size = 25
-    epoch_size = 500
+    epoch_size = 2
     learning_rate = 0.0001
 
     track_dataframe.reset_index(drop=True, inplace=True)

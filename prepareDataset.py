@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import featureExtraction
 import torch
+import pickle
 
 db = connect()
 cursor = cursor = db.cursor()
@@ -47,9 +48,7 @@ def get_track_features(track_id):
     features = cursor.fetchone()
     return(features[1:9])
 
-
-def buildDataframe(dataset_type):
-    query = "SELECT * FROM tracks LIMIT 1000"
+def get_tracks(dataset_type, query, number):
     tracks = pd.read_sql(query, db)
     tracks['spectrogram'] = np.nan
     tracks['mfcc'] = np.nan
@@ -80,9 +79,26 @@ def buildDataframe(dataset_type):
     tracks['spectrogram'] = tracks['track_id'].apply(featureExtraction.gen_spectrogram)
 
     tracks['mfcc'] = tracks['track_id'].apply(featureExtraction.gen_mffc)
-    
-    print("Dataset finished")
 
-    return tracks
+    with open("tracks-"+ str(number) +".pkl", "wb") as file:
+        pickle.dump(tracks, file)
+
+
+def buildDataframe(dataset_type, split):
+    if split == True:
+        query = cursor.execute("SELECT COUNT(*) FROM tracks",)
+        track_count = cursor.fetchone()[0]
+        multiplier = round(track_count / 10)
+        queries = list()
+        for i in range (1,11):
+            previous = multiplier * (i - 1)
+            query = "SELECT * FROM tracks ORDER BY track_id LIMIT " + str(multiplier) + " OFFSET "+ str(previous)
+            get_tracks(dataset_type, query, i)
+        
+    elif split == False:
+        query = "SELECT * FROM tracks"
+        get_tracks(dataset_type, query, 0)
+    
+
     
 
