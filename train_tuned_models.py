@@ -101,6 +101,8 @@ for idx, file_name in enumerate(files):
     test_loader = DataLoader(test_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=False)
 
     model = audioFeatureModel()
+    if os.path.exists("max_feature_v1.pth"):
+        model.load_state_dict(torch.load("max_feature_v1.pth"))
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,3 +118,4 @@ for idx, file_name in enumerate(files):
     val_results_dataframe = pd.DataFrame(val_results)
     train_results_dataframe.to_csv(str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+str(idx)+"-train_results.csv")
     val_results_dataframe.to_csv(str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+str(idx)+"val_results.csv")
+    torch.save(model.state_dict(), "max_feature_v1.pth")
