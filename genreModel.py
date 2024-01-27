@@ -39,17 +39,11 @@ class topGenreClassifier(nn.Module):
         return num_features
 
 def save_ckp(state, is_best):
-    f_path = 'max_feature_checkpoint.pt'
+    f_path = 'max_genre_checkpoint.pt'
     torch.save(state, f_path)
     if is_best:
-        best_fpath = 'max_feature_best_model.pt'
+        best_fpath = 'max_genre_best_model.pt'
         shutil.copyfile(f_path, best_fpath)
-
-def load_ckp(checkpoint_fpath, model, optimizer):
-    checkpoint = torch.load(checkpoint_fpath)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-    return model, optimizer
     
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device):

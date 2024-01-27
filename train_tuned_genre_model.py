@@ -81,8 +81,11 @@ for idx, file_name in enumerate(files):
     criterion = nn.BCEWithLogitsLoss()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    if idx > 0:
+        if os.path.exists("max_genre_checkpoint.pt"):
+            model, optimizer = load_ckp("max_genre_checkpoint.pt", model, optimizer)
 
-    train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, epoch_size)
+    train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, epoch_size, device)
 
     train_results_dataframe = pd.DataFrame(train_results)
     val_results_dataframe = pd.DataFrame(val_results)
