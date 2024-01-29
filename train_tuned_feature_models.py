@@ -13,7 +13,6 @@ import torch.cuda
 from torch.nn.functional import pad
 import os
 import pandas as pd
-import pickle
 
 def normalize_tempo(split):
     tempo = [item[1][-1] for item in split]

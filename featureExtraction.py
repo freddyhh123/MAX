@@ -1,22 +1,14 @@
 import torch
 import torchaudio
-
 import numpy as np
-
 import torchaudio.transforms as T
 from torchaudio.transforms import MFCC
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
-import urllib.request
-
 import librosa
-
 import os
-
 from databaseConfig import connect
-
 import uuid
 
 db = connect()

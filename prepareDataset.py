@@ -1,9 +1,7 @@
-import mysql.connector
 from databaseConfig import connect
 import pandas as pd
 import numpy as np
 import featureExtraction
-import torch
 import pickle
 
 db = connect()
@@ -24,7 +22,7 @@ def get_top_genres(track_id, track_genres, genre_to_top_genre):
 
     return list(top_genres)
 
-def all_top_genres():
+def get_all_top_genres():
     query = "SELECT genre_id FROM genres WHERE genre_parent = 0"
     cursor.execute(query)
     all_top_genres = cursor.fetchall()
@@ -66,7 +64,7 @@ def get_tracks(dataset_type, query, number):
         tracks['features'] = tracks['track_id'].apply(get_track_features)
     else:
         tracks['top_genres'] = np.nan
-        all_top_genres = all_top_genres()
+        all_top_genres = get_all_top_genres()
         all_top_genres = [item[0] for item in all_top_genres]
         genre_relationship_query = "SELECT genre_id, top_genre FROM genres"
         genre_relationships_df = pd.read_sql(genre_relationship_query, db)
