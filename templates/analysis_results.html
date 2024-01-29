@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <title>Analysis Results</title>
+</head>
+<body>
+    <header>
+        <h1>Top Level Genre Breakdown</h1>
+    </header>
+    <div class="genrePredictions">
+        <h2>Genre Predictions:</h2>
+        <ol>
+            {% for genre, (id, probability) in genres.items() %}
+                <li>{{ genre }}, Confidence: {{ probability }}%</li>
+            {% endfor %}
+        </ol>            
+    </div>
+    <div class="featurePredictions">
+        <h2>Feature Predictions:</h2>
+        <ol>
+            {% for feature, (score) in features.items() %}
+                <li>{{ feature }}: {{ score }}</li>
+            {% endfor %}
+        </ol>            
+    </div>
+    <div class="resultGraphs">
+        <img src="data:image/png;base64,{{ plot_url }}" alt="Bar Graph of genres">
+        <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram">
+    </div>
+</body>
+</html>
