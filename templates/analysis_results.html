@@ -8,21 +8,23 @@
     <header>
         <h1>Top Level Genre Breakdown</h1>
     </header>
-    <div class="genrePredictions">
-        <h2>Genre Predictions:</h2>
-        <ol>
-            {% for genre, (id, probability) in genres.items() %}
-                <li>{{ genre }}, Confidence: {{ probability }}%</li>
-            {% endfor %}
-        </ol>            
-    </div>
-    <div class="featurePredictions">
-        <h2>Feature Predictions:</h2>
-        <ol>
-            {% for feature, (score) in features.items() %}
-                <li>{{ feature }}: {{ score }}</li>
-            {% endfor %}
-        </ol>            
+    <div class="predictions">
+        <div class="genrePredictions">
+            <h2>Genre Predictions:</h2>
+            <ol>
+                {% for genre, (id, probability) in genres.items() %}
+                    <li>{{ genre }}, Confidence: {{ probability }}%</li>
+                {% endfor %}
+            </ol>            
+        </div>
+        <div class="featurePredictions">
+            <h2>Feature Predictions:</h2>
+            <ol>
+                {% for feature, (score) in features.items() %}
+                    <li>{{ feature }}: {{ score }}</li>
+                {% endfor %}
+            </ol>            
+        </div>
     </div>
     <div class="resultGraphs">
         <img src="data:image/png;base64,{{ plot_url }}" alt="Bar Graph of genres">
