@@ -76,12 +76,6 @@ h1 {
   max-width: 40%;
 }
 
-.genrePredictions {
-  margin-left: 25%;
-  margin-right: 25%;
-}
-
-
 .predictions {
   display: flex;
   align-items: center;
