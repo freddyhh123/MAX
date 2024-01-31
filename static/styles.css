@@ -115,3 +115,7 @@ h1 {
   display: flex;
   justify-content: center;
 }
+
+.featurePredictions ol li {
+  list-style-type: none;
+}
