@@ -1,41 +1,23 @@
-import prepareDataset
-from fmaDataset import fmaDataset
-import torch.optim as optim
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch.nn as nn
-from genreModel import topGenreClassifier
-from genreModel import train_model
-import torch.cuda
-from torch.nn.functional import pad
 import os
 import pandas as pd
-import pickle
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torch.nn.functional import pad
 from sklearn.metrics import f1_score, accuracy_score, hamming_loss
+from sklearn.model_selection import train_test_split
+
+from prepareDataset import buildDataframe
+from fmaDataset import fmaDataset
+from genreModel import topGenreClassifier, train_model
 
 
 def resize_collate(batch):
-    processed_features = []
-    labels = []
-
-    for features, label in batch:
-        current_size = features.shape[2]
-        if current_size < 2580:
-            padding_needed = 2580 - current_size
-            features = pad(features, (0, padding_needed), "constant", 0)
-        elif current_size > 2580:
-            features = features[:, :, :2580]
-        elif features.shape[0] == 1:
-            features = features.repeat(2, 1, 1)
-        processed_features.append(features)
-
-        labels.append(torch.tensor(label))
-
-    labels = torch.stack(labels)
-    features_batch = torch.stack(processed_features)
-
-    return features_batch, labels
+    processed_features = [pad(features, (0, 2580 - features.shape[2]), "constant", 0) if features.shape[2] < 2580 else features[:, :, :2580] for features, label in batch]
+    labels = torch.stack([torch.tensor(label) for _, label in batch])
+    return torch.stack(processed_features), labels
 
 def load_ckp(checkpoint_fpath, model, optimizer):
     checkpoint = torch.load(checkpoint_fpath)
@@ -51,6 +33,20 @@ def append_or_create(results_dataframe, file_path):
         updated_dataframe = results_dataframe
 
     updated_dataframe.to_csv(file_path, index=False)
+
+def calculate_metrics(metrics, labels_predictions, train_results, val_results, epoch):
+    labels = torch.cat(labels_predictions['labels'], dim=0).numpy()
+    predictions = torch.cat(labels_predictions['predictions'], dim=0).numpy()
+    val_all_labels = np.concatenate(labels)
+    val_all_predictions = np.concatenate(predictions)
+    metrics['epoch'].append(epoch + 1)
+    metrics['validation_accuracy'].append(val_results['val_accuracy'])
+    metrics['train_accuracy'].append(train_results['train_accuracy'])
+    metrics['f1_macro'].append(f1_score(val_all_labels, val_all_predictions, average='macro'))
+    metrics['f1_micro'].append(f1_score(val_all_labels, val_all_predictions, average='micro'))
+    metrics['hamming_loss'].append(hamming_loss(val_all_labels, val_all_predictions))
+    metrics['subset_accuracy'].append(accuracy_score(val_all_labels, val_all_predictions))
+    return metrics
 
 def main():
     #prepareDataset.buildDataframe("genres", True)
@@ -70,19 +66,18 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    if os.path.exists("max_genre_v1.pth"):
-        model.load_state_dict(torch.load("max_genre_v1.pth"))
+    #if os.path.exists("max_genre_v1.pth"):
+        #model.load_state_dict(torch.load("max_genre_v1.pth"))
 
-    if os.path.exists("max_genre_checkpoint.pt"):
-        model, optimizer = load_ckp("max_genre_checkpoint.pt", model, optimizer)
+    #if os.path.exists("max_genre_checkpoint.pt"):
+        #model, optimizer = load_ckp("max_genre_checkpoint.pt", model, optimizer)
 
-    f1_macro_scores = list()
-    f1_micro_scores = list()
-    hammingloss = list()
-    subset_accuracy = list()
+    epoch_validation_accuracy = list()
+    epoch_train_accuracy = list()
     for epoch in range(epoch_size):
-        label_predictions_epoch = list()
+        print("Epoch: "+str(epoch)+"/"+str(epoch_size))
         for idx, file_name in enumerate(files):
+            metrics = {'epoch': [], 'f1_macro': [], 'f1_micro': [], 'hamming_loss': [], 'subset_accuracy': [], 'validation_accuracy': [], 'train_accuracy': []}
             name, extension = os.path.splitext(file_name)
             if extension != ".pkl":
                 continue
@@ -104,17 +99,11 @@ def main():
             print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
             train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
             
-            label_predictions_epoch.append(labels_predictions)
-
-            train_results_dataframe = pd.DataFrame(train_results)
-            val_results_dataframe = pd.DataFrame(val_results)
-        print(label_predictions_epoch)
+            epoch_validation_accuracy.append(val_results['val_accuracy'])
+            epoch_train_accuracy.append(train_results['train_accuracy'])
         
-        f1_macro_scores.append(f1_score(labels_predictions['labels'], labels_predictions['predictions'], average='macro'))
-        f1_micro_scores.append(f1_score(labels_predictions['labels'], labels_predictions['predictions'], average='micro'))
-        hammingloss.append(hamming_loss(labels_predictions['labels'], labels_predictions['predictions']))
-        subset_accuracy.append(accuracy_score(labels_predictions['labels'], labels_predictions['predictions']))
-        print(f1_macro_scores, f1_micro_scores, hammingloss, subset_accuracy)
+            metrics = calculate_metrics(metrics, labels_predictions, train_results, val_results, epoch)
+            append_or_create(pd.DataFrame(metrics), val_results_file)
 
         torch.save({
             'state_dict': model.state_dict(),

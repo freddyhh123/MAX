@@ -63,6 +63,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     correct_val = 0.0
     total_train = 0.0
     total_val = 0.0
+
     model.train()
     for inputs, labels in train_loader:
         inputs,labels = inputs.to(device), labels.to(device)
@@ -87,39 +88,39 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
         overall_train_loss.append(training_loss / len(train_loader))
         epoch_train_accuracy.append(train_accuracy)
 
-        model.eval()
-        with torch.no_grad():
-            for inputs, labels in valid_loader:
-                inputs,labels = inputs.to(device), labels.to(device)
-                labels = labels.float()
-                outputs = model(inputs)
+    model.eval()
+    with torch.no_grad():
+        for inputs, labels in valid_loader:
+            inputs,labels = inputs.to(device), labels.to(device)
+            labels = labels.float()
+            outputs = model(inputs)
 
-                probabilities = sigmoid(outputs.data)
-                predictions = (probabilities > 0.5).int()   
+            probabilities = sigmoid(outputs.data)
+            predictions = (probabilities > 0.5).int()   
 
-                total_val += labels.size(0)
-                correct_val = (predictions == labels).float()
-                val_sample_accuracy = correct_val.mean(dim=1)
-                val_accuracy = val_sample_accuracy.mean().item()
+            total_val += labels.size(0)
+            correct_val = (predictions == labels).float()
+            val_sample_accuracy = correct_val.mean(dim=1)
+            val_accuracy = val_sample_accuracy.mean().item()
 
-                loss = criterion(outputs, labels)
-                validation_loss += loss.item()
-                val_predictions.append(predictions.cpu())
-                val_labels.append(labels.cpu())
+            loss = criterion(outputs, labels)
+            validation_loss += loss.item()
+            val_predictions.append(predictions.cpu())
+            val_labels.append(labels.cpu())
 
-            overall_val_loss.append(validation_loss / len(valid_loader))
-            epoch_validation_accuracy.append(val_accuracy)
+        # TODO, get whole dataset count
+        overall_val_loss.append(validation_loss / len(valid_loader))
 
         print(f"Validation Loss: {validation_loss / len(valid_loader)}")
 
-    train_results  = pd.DataFrame ({
-        'train_accuracy': epoch_train_accuracy,
+    train_results  = {
+        'train_accuracy': sum(epoch_train_accuracy) / len(train_loader),
         'train_loss' : overall_train_loss
-    })
-    val_results  = pd.DataFrame ({
-        'val_accuracy': epoch_validation_accuracy,
-        'val_loss' : overall_val_loss,
-    })
+    }
+    val_results = {
+        'val_accuracy': val_accuracy,
+        'val_loss' : sum(overall_val_loss) / len(train_loader),
+    }
     val_labels_batch = {
         'labels' : val_labels,
         'predictions' : val_predictions

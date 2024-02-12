@@ -164,6 +164,8 @@ cython_debug/
 /.idea
 
 *.wav
+*.mp3
+
 *.png
 *.csv
 
@@ -175,3 +177,5 @@ cython_debug/
 *.pt
 
 *.rar
+
+test.py

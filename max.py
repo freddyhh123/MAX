@@ -36,7 +36,7 @@ app.static_folder = 'static'
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # Render the front-end interface
+    return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload():
