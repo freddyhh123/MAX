@@ -55,66 +55,82 @@ def load_ckp(checkpoint_fpath, model, optimizer):
     optimizer.load_state_dict(checkpoint['optimizer'])
     return model, optimizer
 
-prepareDataset.buildDataframe("features", True)
-folder_path = 'track_files'
-files = os.listdir(folder_path)
+def append_or_create(results_dataframe, file_path):
+    if os.path.exists(file_path):
+        existing_dataframe = pd.read_csv(file_path)
+        updated_dataframe = pd.concat([existing_dataframe, results_dataframe], ignore_index=True)
+    else:
+        updated_dataframe = results_dataframe
 
-for idx, file_name in enumerate(files):
-    name, extension = os.path.splitext(file_name)
+    updated_dataframe.to_csv(file_path, index=False)
 
-    if extension != ".pkl":
-        continue
+def main():
+    prepareDataset.buildDataframe("features", True)
+    folder_path = 'track_files'
+    files = [file for file in os.listdir(folder_path) if file.endswith(".pkl")]
 
-    track_dataframe = pd.read_pickle(os.path.join(folder_path, file_name))
-
-    print("Analysing file: " + str(file_name) + "File no: "+ str(idx) +"/"+ str(len(files)))
-    print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
-
-    rows_with_na = track_dataframe.isna().any(axis=0)
-    na_rows_exist = rows_with_na.any()
-    if na_rows_exist:
-        rows_with_na_df = track_dataframe[rows_with_na]
-        print(str(rows_with_na_df)+" rows with missing data")
-
+    count = 0
     batch_size = 25
-    epoch_size = 2
+    epoch_size = 50
     learning_rate = 0.0001
 
-    track_dataframe.reset_index(drop=True, inplace=True)
-
-    dataset = fmaDataset(dataframe = track_dataframe, id = track_dataframe['track_id'], spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['features'])
-
-    train_df, test_df = train_test_split(dataset, test_size=0.3, train_size=0.7, random_state=666)
-
-    train_df, train_min, train_max = normalize_tempo(train_df)
-    test_df, val_min, val_max = normalize_tempo(test_df)
-
-    normalization_values = {
-        "train_max" : train_max,
-        "train_min" : train_min,
-        "val_max" : val_max,
-        "val_min" : val_min
-    }
-
-    train_loader = DataLoader(train_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=True)
-    test_loader = DataLoader(test_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=False)
+    train_results_file = str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-feature"+"-train_results.csv"
+    val_results_file = str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-feature"+"-val_results.csv"
 
     model = audioFeatureModel()
-    if os.path.exists("max_feature_v1.pth"):
-        model.load_state_dict(torch.load("max_feature_v1.pth"))
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    print(device)
-    if idx > 0:
-        if os.path.exists("max_feature_checkpoint.pt"):
-            model, optimizer = load_ckp("max_feature_checkpoint.pt", model, optimizer)
 
-    train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, epoch_size, device, normalization_values)
+    if os.path.exists("max_feature_v1.pth"):
+        model.load_state_dict(torch.load("max_feature_v1.pth"))
 
-    train_results_dataframe = pd.DataFrame(train_results)
-    val_results_dataframe = pd.DataFrame(val_results)
-    train_results_dataframe.to_csv(str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+str(idx)+"-train_results.csv")
-    val_results_dataframe.to_csv(str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-"+str(idx)+"val_results.csv")
+    if os.path.exists("max_feature_checkpoint.pt"):
+        model, optimizer = load_ckp("max_feature_checkpoint.pt", model, optimizer)
+
+    for epoch in range(epoch_size):
+        for idx, file_name in enumerate(files):
+            name, extension = os.path.splitext(file_name)
+            if extension != ".pkl":
+                continue
+
+            track_dataframe = pd.read_pickle(os.path.join(folder_path, file_name))
+            track_dataframe.reset_index(drop=True, inplace=True)
+            rows_with_na = track_dataframe.isna().any(axis=0)
+            na_rows_exist = rows_with_na.any()
+            if na_rows_exist:
+                rows_with_na_df = track_dataframe[rows_with_na]
+                print(str(rows_with_na_df)+" rows with missing data")
+
+            dataset = fmaDataset(dataframe=track_dataframe, id=track_dataframe['track_id'], spectrogram=track_dataframe['spectrogram'].values, mfcc=track_dataframe['mfcc'], labels=track_dataframe['features'])
+            train_df, test_df = train_test_split(dataset, test_size=0.3, random_state=666)
+            train_df, train_min, train_max = normalize_tempo(train_df)
+            test_df, val_min, val_max = normalize_tempo(test_df)
+
+            train_loader = DataLoader(train_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=True)
+            test_loader = DataLoader(test_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=False)
+            
+            print("Analysing file: " + str(file_name) + "File no: "+ str(idx) +"/"+ str(len(files)))
+            print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
+            train_results, val_results = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device, {'train_max': train_max, 'train_min': train_min, 'val_max': val_max, 'val_min': val_min},count)
+            
+            train_results_dataframe = pd.DataFrame(train_results)
+            val_results_dataframe = pd.DataFrame(val_results)
+            append_or_create(train_results_dataframe, train_results_file)
+            append_or_create(val_results_dataframe, val_results_file)
+
+            print(f"Epoch {epoch+1}/{epoch_size}, File {idx+1}/{len(files)} completed.")
+
+        torch.save({
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+        }, "max_feature_checkpoint.pt")
+
+    print(count)
+    with open("count.txt", "w") as file:
+        file.write(str(count))
     torch.save(model.state_dict(), "max_feature_v1.pth")
+
+if __name__ == "__main__":
+    main()
