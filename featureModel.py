@@ -38,6 +38,8 @@ def save_ckp(state, is_best):
 def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device, normalization_values):
     overall_train_loss = list()
     overall_val_loss = list()
+    val_predictions = list()
+    val_labels = list()
     model.to(device)
 
     print("Training started")
@@ -53,7 +55,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
         optimizer.step()
         training_loss += loss.item()
 
-    overall_train_loss.append(training_loss / len(train_loader))
+        overall_train_loss.append(training_loss)
 
     model.eval()
     with torch.no_grad():
@@ -62,20 +64,23 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
             outputs = model(inputs).float()
             loss = criterion(outputs, labels)
             validation_loss += loss.item()
-        overall_val_loss.append(validation_loss / len(valid_loader))
-        print(f"Validation Loss: {validation_loss / len(valid_loader)}")
+            val_predictions.append(outputs.cpu())
+            val_labels.append(labels.cpu())
+            overall_val_loss.append(validation_loss)
 
-    train_results = pd.DataFrame({
-        'train_loss': overall_train_loss
-    })
-    val_results = pd.DataFrame({
-        'val_loss': overall_val_loss
-    })
+    train_results  = {
+        'train_loss' : sum(overall_train_loss) / len(overall_train_loss)
+    }
+    val_results = {
+        'val_loss' : sum(overall_val_loss) / len(overall_val_loss),
+    }
+    val_labels_batch = {
+        'labels' : val_labels,
+        'predictions' : val_predictions
+    }
     checkpoint = {
-    'epoch': epoch + 1,
     'state_dict': model.state_dict(),
     'optimizer': optimizer.state_dict()
     }
     save_ckp(checkpoint, False)
-    count = count+1
-    return(train_results, val_results, overall_train_loss, overall_val_loss, count)
+    return(train_results, val_results, val_labels_batch)

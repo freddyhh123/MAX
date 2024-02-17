@@ -56,21 +56,24 @@ def get_track_features(track_id):
 
 # This processes and saves a chunk of tracks to a file
 def get_tracks(dataset_type, tracks_chunk, number):
-    columns = ['index'] + ['track_id'] + ['track_name'] + ['file_path'] + ['time_added'] + ['trained'] + ['batch'] + ["num"]
+    if dataset_type == "features":
+        columns = ['track_id'] + ['track_name'] + ['file_path'] + ['time_added'] + ['trained'] + ['batch']
+    else:
+        columns = ['index'] + ['track_id'] + ['track_name'] + ['file_path'] + ['time_added'] + ['trained'] + ['batch'] + ["num"]
     tracks = pd.DataFrame(tracks_chunk, columns = columns)
     tracks = tracks[['track_id', 'track_name', 'file_path']]
     
     # Make some empty columns for later use
     tracks['spectrogram'] = np.nan
     tracks['mfcc'] = np.nan
-    tracks['top_genres'] = np.nan if dataset_type != "features" else None
-    tracks['genre_vector'] = np.nan if dataset_type != "features" else None
 
     # If its features this is nice and easy!
     if dataset_type == "features":
         tracks['features'] = np.nan if dataset_type == "features" else None
         tracks['features'] = tracks['track_id'].apply(get_track_features)
     else:
+        tracks['top_genres'] = np.nan if dataset_type != "features" else None
+        tracks['genre_vector'] = np.nan if dataset_type != "features" else None
         # Getting all top genres - Refer to schema if this is confusing
         all_top_genres = get_all_top_genres()
         all_top_genres = [item[0] for item in all_top_genres]
@@ -99,8 +102,18 @@ def buildDataframe(dataset_type, split):
     if split:
         # Features are easy!
         if dataset_type == "features":
-            cursor.execute("SELECT COUNT(*) FROM tracks")
+            cursor.execute("""
+                SELECT tracks.*
+                FROM tracks
+                INNER JOIN features ON tracks.track_id = features.featureset_id;
+            """)
             tracks = cursor.fetchall()
+            random.shuffle(tracks)
+            tracks_per_file = 1000
+            for i in range(0, len(tracks), tracks_per_file):
+                chunk = tracks[i:i+tracks_per_file]
+                file_number = i // tracks_per_file + 1
+                get_tracks(dataset_type, chunk, file_number)
         else:
             # This query gets the top level genre with the least tracks
             # we can then use this for balancing

@@ -85,7 +85,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
 
         training_loss += loss.item()
 
-        overall_train_loss.append(training_loss / len(train_loader))
+        overall_train_loss.append(training_loss)
         epoch_train_accuracy.append(train_accuracy)
 
     model.eval()
@@ -108,18 +108,15 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
             val_predictions.append(predictions.cpu())
             val_labels.append(labels.cpu())
 
-        # TODO, get whole dataset count
-        overall_val_loss.append(validation_loss / len(valid_loader))
-
-        print(f"Validation Loss: {validation_loss / len(valid_loader)}")
+            overall_val_loss.append(validation_loss)
 
     train_results  = {
-        'train_accuracy': sum(epoch_train_accuracy) / len(train_loader),
-        'train_loss' : overall_train_loss
+        'train_accuracy': sum(epoch_train_accuracy) / len(epoch_train_accuracy),
+        'train_loss' : sum(overall_train_loss) / len(overall_train_loss)
     }
     val_results = {
         'val_accuracy': val_accuracy,
-        'val_loss' : sum(overall_val_loss) / len(train_loader),
+        'val_loss' : sum(overall_val_loss) / len(overall_val_loss),
     }
     val_labels_batch = {
         'labels' : val_labels,
