@@ -19,17 +19,19 @@ import prepareDataset
 from fmaDataset import fmaDataset
 
 # Here we are uisng min-max normalization
-def normalize_tempo(split):
-    tempo = [item[1][-1] for item in split]
-    min_tempo = min(tempo)
-    max_tempo = max(tempo)
+def normalize_tempo(min_tempo,max_tempo,split):
     normalized_data = []
     for tensor_data, scalar_values in split:
         normalized_last_value = (scalar_values[-1] - min_tempo) / (max_tempo - min_tempo)
         normalized_scalar_values = scalar_values[:-1] + (normalized_last_value,)
         normalized_data.append((tensor_data, normalized_scalar_values))
     
-    return(normalized_data, min_tempo, max_tempo)
+    return(normalized_data)
+
+def min_max_tempo(features):
+    tempos = features.apply(lambda x: x[7])
+    return tempos.min(), tempos.max()
+
 
 # This is our collate function, it allows the loader to process the features
 # by making them the right "shape" for the model.
@@ -74,6 +76,21 @@ def main():
     #prepareDataset.buildDataframe("features", True)
     folder_path = 'feature_track_files'
     files = [file for file in os.listdir(folder_path) if file.endswith(".pkl")]
+
+    min_value = 2000
+    max_value = 0
+    for idx, file_name in enumerate(files):
+        track_dataframe = pd.read_pickle(os.path.join(folder_path, file_name))
+        track_dataframe.reset_index(drop=True, inplace=True)
+        min_tempo, max_tempo = min_max_tempo(track_dataframe['features'])
+        if min_tempo < min_value:
+            min_value = min_tempo
+        elif max_tempo > max_value:
+            max_value = max_tempo
+
+        with open("min_max_tempo.csv", 'w') as file:
+            file.write('Min,Max\n')
+            file.write(f'{min_value},{max_value}\n')
 
     # Setting our main hyperparameters
     batch_size = 25
@@ -128,8 +145,8 @@ def main():
             dataset = fmaDataset(dataframe=track_dataframe, id=track_dataframe['track_id'], spectrogram=track_dataframe['spectrogram'].values, mfcc=track_dataframe['mfcc'], labels=track_dataframe['features'])
             train_df, test_df = train_test_split(dataset, test_size=0.3, random_state=666)
             # Normalize the tempo column of our data
-            train_df, train_min, train_max = normalize_tempo(train_df)
-            test_df, val_min, val_max = normalize_tempo(test_df)
+            train_df = normalize_tempo(min_value, max_value, train_df)
+            test_df = normalize_tempo(min_value, max_value, test_df)
 
             train_loader = DataLoader(train_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=True)
             test_loader = DataLoader(test_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=False)
@@ -137,7 +154,7 @@ def main():
             print("Analysing file: " + str(file_name) + "File no: "+ str(idx + 1) +"/"+ str(len(files)))
             print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
             # Train the model with this file's tracks
-            train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device, {'train_max': train_max, 'train_min': train_min, 'val_max': val_max, 'val_min': val_min})
+            train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
             
             # There is some odd formatting with dictionaries, so this is here just to make sure
             # the format is right for metric calculations

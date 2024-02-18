@@ -35,7 +35,7 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
 
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device, normalization_values):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device):
     overall_train_loss = list()
     overall_val_loss = list()
     val_predictions = list()
