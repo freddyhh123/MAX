@@ -22,6 +22,9 @@ def gen_spectrogram(track_id):
 
     track = cursor.fetchone()
 
+    if os.name == 'posix':
+        track[2] = track[2].replace("\\", "/")
+
     wav, sample_rate = torchaudio.load(track[2], normalize = True)
 
     resample_rate = 44100
@@ -42,6 +45,9 @@ def gen_mfcc(track_id):
     cursor.execute(query, values)
 
     track = cursor.fetchone()
+
+    if os.name == 'posix':
+        track[2] = track[2].replace("\\", "/")
 
     wav, sample_rate = torchaudio.load(track[2], normalize = True)
 
