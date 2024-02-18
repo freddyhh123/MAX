@@ -23,9 +23,11 @@ def gen_spectrogram(track_id):
     track = cursor.fetchone()
 
     if os.name == 'posix':
-        track[2] = track[2].replace("\\", "/")
+        track_path = track[2].replace("\\", "/")
+    else:
+        track_path = track[2]
 
-    wav, sample_rate = torchaudio.load(track[2], normalize = True)
+    wav, sample_rate = torchaudio.load(track_path, normalize = True)
 
     resample_rate = 44100
     resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
@@ -47,7 +49,9 @@ def gen_mfcc(track_id):
     track = cursor.fetchone()
 
     if os.name == 'posix':
-        track[2] = track[2].replace("\\", "/")
+        track_path = track[2].replace("\\", "/")
+    else:
+        track_path = track[2]
 
     wav, sample_rate = torchaudio.load(track[2], normalize = True)
 
@@ -63,6 +67,9 @@ def gen_mfcc(track_id):
 
 def gen_spectrogram_path(file_path):
     file_id = uuid.uuid4()
+    if os.name == 'posix':
+        file_path = file_path.replace("\\", "/")
+
     wav, sample_rate = torchaudio.load(file_path, normalize = True)
 
     resample_rate = 44100
@@ -77,6 +84,8 @@ def gen_spectrogram_path(file_path):
     return spec_noramlised, file_id
 
 def gen_mffc_path(file_path):
+    if os.name == 'posix':
+        file_path = file_path.replace("\\", "/")
     wav, sample_rate = torchaudio.load(file_path, normalize = True)
 
     resample_rate = 44100
