@@ -56,24 +56,22 @@ def append_or_create(results_dataframe, file_path):
     updated_dataframe.to_csv(file_path, index=False)
 
 # This calculates our genre metrics and outputs them ready for file export
-def calculate_metrics(metrics, labels_predictions, train_results, val_results, epoch, track_count):
+def calculate_metrics(metrics, labels_predictions, train_results, val_results, epoch):
     labels = torch.cat(labels_predictions['labels'], dim=0).numpy()
     predictions = torch.cat(labels_predictions['predictions'], dim=0).numpy()
     val_all_labels = np.concatenate(labels)
     val_all_predictions = np.concatenate(predictions)
     metrics['epoch'].append(epoch + 1)
-    metrics['validation_accuracy'].append(sum(val_results['validation_accuracy']) / len(val_results['validation_accuracy']))
-    metrics['train_accuracy'].append(sum(train_results['train_accuracy']) / len(train_results['train_accuracy']))
     metrics['validation_loss'].append(sum(val_results['validation_loss']) / len(val_results['validation_loss']))
     metrics['train_loss'].append(sum(train_results['train_loss']) / len(train_results['train_loss']))
     # Calculate our metrics based off labels and predictions
-    metrics['pearsonr'].append(pearsonr(val_all_labels, val_all_predictions))
+    metrics['pearsonr'].append(pearsonr(val_all_labels, val_all_predictions)[0])
     metrics['r2_score'].append(r2_score(val_all_labels, val_all_predictions))
     return metrics
 
 def main():
     # If the data isnt ready i.e. you don't have the files, uncomment
-    prepareDataset.buildDataframe("features", True)
+    #prepareDataset.buildDataframe("features", True)
     folder_path = 'feature_track_files'
     files = [file for file in os.listdir(folder_path) if file.endswith(".pkl")]
 
@@ -102,7 +100,7 @@ def main():
 
     for epoch in range(epoch_size):
         # Set up all our storage variables
-        metrics = {'epoch': [], 'validation_accuracy': [], 'train_accuracy': [], 'validation_loss':[], 'train_loss':[], 'pearsonr':[], 'r2_score':[]}
+        metrics = {'epoch': [], 'validation_loss':[], 'train_loss':[], 'pearsonr':[], 'r2_score':[]}
         epoch_val_results = {
             'validation_accuracy' : list(),
             'validation_loss' : list()
@@ -136,10 +134,10 @@ def main():
             train_loader = DataLoader(train_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=True)
             test_loader = DataLoader(test_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=False)
             
-            print("Analysing file: " + str(file_name) + "File no: "+ str(idx) +"/"+ str(len(files)))
+            print("Analysing file: " + str(file_name) + "File no: "+ str(idx + 1) +"/"+ str(len(files)))
             print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
             # Train the model with this file's tracks
-            train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device, {'train_max': train_max, 'train_min': train_min, 'val_max': val_max, 'val_min': val_min},count)
+            train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device, {'train_max': train_max, 'train_min': train_min, 'val_max': val_max, 'val_min': val_min})
             
             # There is some odd formatting with dictionaries, so this is here just to make sure
             # the format is right for metric calculations
@@ -147,9 +145,6 @@ def main():
             for label, prediction in zip(labels_predictions['labels'], labels_predictions['predictions']):
                 epoch_labels_predictions['labels'].append(label)
                 epoch_labels_predictions['predictions'].append(prediction)
-
-            epoch_val_results['validation_accuracy'].append(val_results['val_accuracy'])
-            epoch_train_results['train_accuracy'].append(train_results['train_accuracy'])
 
             epoch_train_results['train_loss'].append(train_results['train_loss'])
             epoch_val_results['validation_loss'].append(val_results['val_loss'])

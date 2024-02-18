@@ -122,7 +122,7 @@ def main():
             train_loader = DataLoader(train_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=True)
             test_loader = DataLoader(test_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=False)
 
-            print("Analysing file: " + str(file_name) + "File no: "+ str(idx) +"/"+ str(len(files)))
+            print("Analysing file: " + str(file_name) + "File no: "+ str(idx + 1) +"/"+ str(len(files)))
             print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
             # Train the model with this file's tracks
             train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
