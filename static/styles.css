@@ -1,0 +1,115 @@
+header {
+  display: flex;
+  justify-content: center;
+}
+
+body {
+  background: #513252;
+}
+
+h1 {
+  color: #FFC18E;
+}
+
+#audio_upload {
+  display: flex;
+  width: 50%;
+  align-items: center;
+  justify-content: center;
+  background: #7A4069;
+  border: solid white 2px;
+  filter: drop-shadow(0px 0px 2px #000000);
+  color: #FFC18E;
+  margin-bottom: 2rem;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.uploadForm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#uploadFileButton {
+  width: 200px;
+  display: flex;
+  outline: 0;
+  font-size: 20px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(to right, #7A4069, #CA4E79) !important;
+  border-radius: 3px;
+  padding: 1rem;
+  white-space: nowrap;
+  border: solid white 0.5px;
+  transition: background-image 1s;
+  transition: border 1s;
+}
+
+#uploadFileButton:hover {
+  border-color: black;
+  background: linear-gradient(to right, rgb(62, 199, 224), rgb(82, 107, 244));
+  filter: drop-shadow(0px 0px 2px #000000);
+}
+
+.subText {
+  justify-content: center;
+  display: flex;
+  color: white;
+  font-size: 16px;
+  margin-bottom: 2rem;
+}
+
+.resultGraphs {
+  display: flex;
+  margin-left: 2rem;
+  margin-right: 2rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.resultGraphs img {
+  max-width: 40%;
+}
+
+.predictions {
+  display: flex;
+  align-items: center;
+  color: #FFC18E;
+  justify-content: center;
+}
+.predictions h2{
+  font-size: 22px;
+  margin-bottom: 0;
+}
+.predictions li{
+  padding-bottom: 0.5rem;
+  font-size: 20px;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+.featurePredictions ol{
+    -moz-column-count: 2;
+    -moz-column-gap: 20px;
+    -webkit-column-count: 2;
+    -webkit-column-gap: 20px;
+    column-count: 2;
+    column-gap: 20px;
+}
+.genrePredictions h2 {
+  display: flex;
+  justify-content: center;
+}
+.featurePredictions h2
+{
+  display: flex;
+  justify-content: center;
+}
+
+.featurePredictions ol li {
+  list-style-type: none;
+}

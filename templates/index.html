@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Classification</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.7.2/min/dropzone.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.7.2/min/dropzone.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Max: an audio analysis model</h1>
+    </header>
+    <p class="subText">Upload An MP3 file and it will be ran through MAX, a set of Artificial intelligence models trained with over 10,000 songs!</p>
+    <div class="uploadForm">
+        <form action="/upload" class="dropzone" id="audio_upload"></form>
+        <button id="uploadFileButton">Upload for analysis!</button>
+    </div>
+    <script>
+        Dropzone.autoDiscover = false;
+    
+        document.addEventListener("DOMContentLoaded", function() {
+            var audio_upload = new Dropzone("#audio_upload", {
+                acceptedFiles: 'audio/mpeg',
+                autoProcessQueue: false,
+                maxFiles: 3,
+                init: function() {
+                    this.on("maxfilesexceeded", function(file) {
+                        alert("You can only upload a maximum of 3 files.");
+                    });
+                    this.on("success", function(file, responseText) {
+                        window.location.href = "/results";
+                    });
+                }
+            });
+            document.getElementById("uploadFileButton").addEventListener("click", function() {
+            audio_upload.processQueue();
+        });
+        });
+    </script>
+</body>
+</html>

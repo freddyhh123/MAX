@@ -36,7 +36,7 @@ def gen_spectrogram(track_id):
 
     return spec
 
-def gen_mffc(track_id):
+def gen_mfcc(track_id):
     query = "SELECT * FROM tracks WHERE track_id = %s"
     values = (track_id,)
     cursor.execute(query, values)

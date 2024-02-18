@@ -46,101 +46,85 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
     
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs, device):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device):
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
     overall_val_loss = list()
-    f1_macro_scores = list()
-    f1_micro_scores = list()
-    hammingloss = list()
-    subset_accuracy = list()
     epoch_train_accuracy = list()
     epoch_validation_accuracy = list()
+    val_predictions = list()
+    val_labels = list()
     model.to(device)
 
-    for epoch in range(num_epochs):
-        print("Training started")
-        training_loss = 0.0
-        validation_loss = 0.0
-        correct_train = 0.0
-        correct_val = 0.0
-        total_train = 0.0
-        total_val = 0.0
-        model.train()
-        for inputs, labels in train_loader:
+    print("Training started")
+    training_loss = 0.0
+    validation_loss = 0.0
+    correct_train = 0.0
+    correct_val = 0.0
+    total_train = 0.0
+    total_val = 0.0
+
+    model.train()
+    for inputs, labels in train_loader:
+        inputs,labels = inputs.to(device), labels.to(device)
+        labels = labels.float()
+        optimizer.zero_grad()
+        outputs = model(inputs)
+
+        probabilities = sigmoid(outputs.data)
+        predictions = (probabilities > 0.5).int()   
+        total_train += labels.size(0)
+        correct_train = (predictions == labels).float()
+        train_sample_accuracy = correct_train.mean(dim=1)
+        train_accuracy = train_sample_accuracy.mean().item()
+
+        loss = criterion(outputs, labels)
+        loss.backward()
+
+        optimizer.step()
+
+        training_loss += loss.item()
+
+        overall_train_loss.append(training_loss)
+        epoch_train_accuracy.append(train_accuracy)
+
+    model.eval()
+    with torch.no_grad():
+        for inputs, labels in valid_loader:
             inputs,labels = inputs.to(device), labels.to(device)
             labels = labels.float()
-            optimizer.zero_grad()
             outputs = model(inputs)
 
             probabilities = sigmoid(outputs.data)
             predictions = (probabilities > 0.5).int()   
-            total_train += labels.size(0)
-            correct_train = (predictions == labels).float()
-            train_sample_accuracy = correct_train.mean(dim=1)
-            train_accuracy = train_sample_accuracy.mean().item()
+
+            total_val += labels.size(0)
+            correct_val = (predictions == labels).float()
+            val_sample_accuracy = correct_val.mean(dim=1)
+            val_accuracy = val_sample_accuracy.mean().item()
 
             loss = criterion(outputs, labels)
-            loss.backward()
+            validation_loss += loss.item()
+            val_predictions.append(predictions.cpu())
+            val_labels.append(labels.cpu())
 
-            optimizer.step()
+            overall_val_loss.append(validation_loss)
 
-            training_loss += loss.item()
-
-        overall_train_loss.append(training_loss / len(train_loader))
-        epoch_train_accuracy.append(train_accuracy)
-
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {training_loss / len(train_loader)}")
-
-        model.eval()
-        with torch.no_grad():
-            for inputs, labels in valid_loader:
-                inputs,labels = inputs.to(device), labels.to(device)
-                labels = labels.float()
-                outputs = model(inputs)
-
-                probabilities = sigmoid(outputs.data)
-                predictions = (probabilities > 0.5).int()   
-
-                total_val += labels.size(0)
-                correct_val = (predictions == labels).float()
-                val_sample_accuracy = correct_val.mean(dim=1)
-                val_accuracy = val_sample_accuracy.mean().item()
-
-                loss = criterion(outputs, labels)
-                validation_loss += loss.item()
-            
-            if device.type == "cuda":
-                f1_macro_scores.append(f1_score(labels.cpu(), predictions.cpu(), average='macro'))
-                f1_micro_scores.append(f1_score(labels.cpu(), predictions.cpu(), average='micro'))
-                hammingloss.append(hamming_loss(labels.cpu(), predictions.cpu()))
-                subset_accuracy.append(accuracy_score(labels.cpu(), predictions.cpu()))
-            else:
-                f1_macro_scores.append(f1_score(labels, predictions, average='macro'))
-                f1_micro_scores.append(f1_score(labels, predictions, average='micro'))
-                hammingloss.append(hamming_loss(labels, predictions))
-                subset_accuracy.append(accuracy_score(labels, predictions))
-
-            overall_val_loss.append(validation_loss / len(valid_loader))
-            epoch_validation_accuracy.append(val_accuracy)
-
-        print(f"Validation Loss: {validation_loss / len(valid_loader)}")
-
-    train_results  = pd.DataFrame ({
-        'train_accuracy': epoch_train_accuracy,
-        'train_loss' : overall_train_loss
-    })
-    val_results  = pd.DataFrame ({
-        'val_accuracy': epoch_validation_accuracy,
-        'val_loss' : overall_val_loss,
-        'f1_macro' : f1_macro_scores,
-        'f1_micro' : f1_micro_scores,
-        'hamming_loss' : hammingloss,
-        'subset_accuracy' : subset_accuracy
-    })
+    train_results  = {
+        'train_accuracy': sum(epoch_train_accuracy) / len(epoch_train_accuracy),
+        'train_loss' : sum(overall_train_loss) / len(overall_train_loss)
+    }
+    val_results = {
+        'val_accuracy': val_accuracy,
+        'val_loss' : sum(overall_val_loss) / len(overall_val_loss),
+    }
+    val_labels_batch = {
+        'labels' : val_labels,
+        'predictions' : val_predictions
+    }
     checkpoint = {
     'state_dict': model.state_dict(),
     'optimizer': optimizer.state_dict()
     }
     save_ckp(checkpoint, False)
-    return(train_results, val_results)
+    return(train_results, val_results, val_labels_batch)
