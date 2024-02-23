@@ -53,7 +53,7 @@ def gen_mfcc(track_id):
     else:
         track_path = track[2]
 
-    wav, sample_rate = torchaudio.load(track[2], normalize = True)
+    wav, sample_rate = torchaudio.load(track_path, normalize = True)
 
     resample_rate = 44100
     resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
@@ -131,4 +131,3 @@ def plot_spectrogram(track_id, specgram):
     plt.yticks(color='white')
     plt.gca().set_facecolor('none')
     plt.savefig("static/images/" + str(track_id) + ".png", transparent=True)
-    
