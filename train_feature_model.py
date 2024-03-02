@@ -83,7 +83,7 @@ def main():
     for epoch_size in epoch_sizes:
         for batch_size in batch_sizes:
             for learning_rate in learning_rates:
-                print("epoch_size : "+str(epoch_size)+"- batch_size: "+str(batch_size)+"- learning_rate: "+str(learning_rate))
+                print("epoch_size : "+str(epoch_size)+"-batch_size: "+str(batch_size)+"-learning_rate: "+str(learning_rate))
                 # Initialise the model and find whether we have CUDA available
                 # TODO, ensure non cuda support
                 model = audioFeatureModel()
@@ -132,7 +132,7 @@ def main():
                         print("Analysing file: " + str(file_name) + "File no: "+ str(idx + 1) +"/"+ str(len(files)))
                         print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
                         # Train the model with this file's tracks
-                        train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device, {'train_max': train_max, 'train_min': train_min, 'val_max': val_max, 'val_min': val_min})
+                        train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
                         
                         # There is some odd formatting with dictionaries, so this is here just to make sure
                         # the format is right for metric calculations

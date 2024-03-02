@@ -5,6 +5,7 @@ from featureExtraction import gen_spectrogram
 from featureExtraction import gen_mfcc
 import pickle
 import random
+import os
 
 # Set db connection for whole file, not best practice but we are only running this one at a time
 db = connect()
@@ -93,7 +94,7 @@ def get_tracks(dataset_type, tracks_chunk, number):
     tracks['mfcc'] = tracks['track_id'].apply(gen_mfcc)
 
     # Saving for processing later on
-    filename = f"tracks-{number}.pkl"
+    filename = f"tracks-{number}-{dataset_type}.pkl"
     with open(filename, "wb") as file:
         pickle.dump(tracks, file)
 
