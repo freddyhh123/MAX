@@ -12,7 +12,7 @@
         <div class="genrePredictions">
             <h2>Genre Predictions:</h2>
             <ol>
-                {% for genre, (id, probability) in genres.items() %}
+                {% for genre, (probability) in genres.items() %}
                     <li>{{ genre }}, Confidence: {{ probability }}%</li>
                 {% endfor %}
             </ol>            

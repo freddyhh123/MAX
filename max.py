@@ -15,6 +15,9 @@ import ast
 import matplotlib.pyplot as plt
 import io
 import base64
+import json
+from uuid import UUID
+from collections import Counter
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -49,8 +52,8 @@ def upload():
         return 'No selected file'
 
     if file:
-        file_path = extract_audio(file)
-        predictions = predict(file_path)
+        folder_path = extract_audio(file)
+        predictions = predict(folder_path)
         session['predictions'] = serialize_dict(predictions)
 
         return redirect(url_for('display_analysis'))
@@ -60,25 +63,54 @@ def display_analysis():
     prediction_list = session.get('predictions', [])
     if not prediction_list:
         return redirect(url_for('index'))
-    cleaned_predictions = re.sub(r'tensor\(([^)]+)\)', r'\1', prediction_list['top_3_predictions'])
-    parsed_data = ast.literal_eval(cleaned_predictions)
-    genre_dict = {}
-    genres = list()
-    probabilities = list()
-    rounded_feature_list = prediction_list["feature_predictions"]
-    for (genre, id), probability in parsed_data:
-        genres.append(genre)
-        probabilities.append(probability)
-        genre_dict[genre] = (id, probability)
-    for feature in prediction_list["feature_predictions"]:
-        rounded_feature_list[feature] = round(rounded_feature_list[feature], 3)
-    
+
+    genre_probabilities = {}
+    genre_counts = Counter()
+    features = {}
+
+    for file in prediction_list:
+        for prediction_str in file['top_3_predictions']:
+            prediction_str = re.sub(r"tensor\(([^)]+)\)", r"\1", prediction_str)
+            (genre, _), probability = ast.literal_eval(prediction_str)
+            genre_counts[genre] += 1
+            if genre in genre_probabilities:
+                genre_probabilities[genre].append(probability)
+            else:
+                genre_probabilities[genre] = [probability]
+
+        for feature, value in file["feature_predictions"].items():
+            if feature in features:
+                features[feature].append(value)
+            else:
+                features[feature] = [value]
+
+
+    most_common_genres = [genre for genre, _ in genre_counts.most_common(3)]
+
+    plot_genres = []
+    plot_probabilities = []
+    for genre in most_common_genres:
+        average_probability = sum(genre_probabilities[genre]) / len(genre_probabilities[genre])
+        plot_genres.append(genre)
+        plot_probabilities.append(average_probability)
+
+    feature_averages = {}
+    for feature, values in features.items():
+        average_value = sum(values) / len(values)
+        feature_averages[feature] = round(average_value,2)
+
+    genre_averages = {}
+    for genre, values in genre_probabilities.items():
+        average_value = sum(values) / len(values)
+        genre_averages[genre] = round(average_value,2)
+
     buf = io.BytesIO()
     plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
-    plt.bar(genres, probabilities, color='purple')
-    plt.xlabel('Genres',color='white')
-    plt.ylabel('Probabilities', color='white')
-    plt.xticks(color='white')
+    plt.bar(plot_genres, plot_probabilities, color='purple')
+    plt.xlabel('Genres', color='white')
+    plt.ylabel('Average Probability', color='white')
+    plt.title('Top 3 Most Common Genres and Their Average Probabilities across the track', color='white')
+    plt.xticks(rotation=45,color='white')
     plt.yticks(color='white')
     plt.gca().set_facecolor('none')
     plt.savefig(buf, format='png', bbox_inches='tight')
@@ -86,75 +118,90 @@ def display_analysis():
     plot_url = base64.b64encode(buf.getvalue()).decode('utf-8')
     buf.close()
     
-    return render_template('analysis_results.html', plot_url=plot_url, file_id = prediction_list['file_id'], genres = genre_dict, features = rounded_feature_list)
+    return render_template('analysis_results.html', plot_url=plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages)
 
-def predict(file_path):
+def predict(folder_path):
     sigmoid = torch.nn.Sigmoid()
-    spec, file_id = gen_spectrogram_path(file_path)
-    mfcc = gen_mffc_path(file_path)
-    spec = spec[..., :2580]
-    mfcc = mfcc[..., :2580]
 
-    combined_features = torch.cat([spec, mfcc], dim=1)
-    with torch.no_grad():
-        genre_prediction = genre_model(combined_features)
-        feature_prediction = feature_model(combined_features.unsqueeze(0))
+    files = [f for f in os.listdir(folder_path) if f.endswith('.mp3')]
 
-        genre_probabilities = sigmoid(genre_prediction.data)
+    full_prediction_data = []
 
-        top3_values, top3_indices = torch.topk(genre_probabilities, k=3, dim=1) 
-        top3_probabilities = top3_values.cpu().numpy()
-        top3_predictions = top3_indices.cpu().numpy()
+    for file in files:
+        file_path = os.path.join(folder_path,file)
+        spec, file_id = gen_spectrogram_path(file_path)
+        mfcc = gen_mffc_path(file_path)
+        spec = spec[..., :2580]
+        mfcc = mfcc[..., :2580]
 
-        top_values, top_indices = torch.topk(genre_probabilities, k=1, dim=1)
-        top_prediction = top_indices.cpu().numpy()
-        top_probability = top_values.cpu().numpy()
-    
-    top3_genres = list()
-    top_genres = app.config['TOP_GENRES']
-    for idx, genre_prediction in enumerate(top3_predictions[0]):
-        top3_genres.append((top_genres[genre_prediction], top3_values[0][idx]*100))
+        combined_features = torch.cat([spec, mfcc], dim=1)
+        with torch.no_grad():
+            genre_prediction = genre_model(combined_features)
+            feature_prediction = feature_model(combined_features.unsqueeze(0))
 
-    top_prediction = top_genres[top_prediction[0][0]]
+            genre_probabilities = sigmoid(genre_prediction.data)
 
-    feature_prediction = feature_prediction.tolist()[0]
+            top3_values, top3_indices = torch.topk(genre_probabilities, k=3, dim=1) 
+            top3_probabilities = top3_values.cpu().numpy()
+            top3_predictions = top3_indices.cpu().numpy()
 
-    features = {
-        "Danceability": feature_prediction[0],
-        "Energy": feature_prediction[1],
-        "Speechiness": feature_prediction[2],
-        "Acousticness": feature_prediction[3],
-        "Instrumentalness": feature_prediction[4],
-        "Liveness": feature_prediction[5],
-        "Valence": feature_prediction[6],
-        "tempo": feature_prediction[7]
-    }
+            top_values, top_indices = torch.topk(genre_probabilities, k=1, dim=1)
+            top_prediction = top_indices.cpu().numpy()
+            top_probability = top_values.cpu().numpy()
+        
+        top3_genres = list()
+        top_genres = app.config['TOP_GENRES']
+        for idx, genre_prediction in enumerate(top3_predictions[0]):
+            top3_genres.append((top_genres[genre_prediction], top3_values[0][idx]*100))
 
-    prediction_data = {
-        "file_id": file_id,
-        "top_prediction": {
-        "genre": top_prediction,
-        "probability": top_probability
-        },
-        "top_3_predictions": top3_genres,
-        "feature_predictions": features
-    }
-    return prediction_data
+        top_prediction = top_genres[top_prediction[0][0]]
+
+        feature_prediction = feature_prediction.tolist()[0]
+
+        features = {
+            "Danceability": feature_prediction[0],
+            "Energy": feature_prediction[1],
+            "Speechiness": feature_prediction[2],
+            "Acousticness": feature_prediction[3],
+            "Instrumentalness": feature_prediction[4],
+            "Liveness": feature_prediction[5],
+            "Valence": feature_prediction[6],
+            "tempo": feature_prediction[7]
+        }
+
+        prediction_data = {
+            "file_id": file_id,
+            "top_prediction": {
+            "genre": top_prediction,
+            "probability": top_probability
+            },
+            "top_3_predictions": top3_genres,
+            "feature_predictions": features
+        }
+        full_prediction_data.append(prediction_data)
+
+    return full_prediction_data
 
 def extract_audio(file):
-    filename = file.filename
+    split_size = 30000
     audio = AudioSegment.from_file(file)
-    start_time = (len(audio) / 2) - (30 * 1000) / 2 
-    start_time = max(start_time, 0)
-    refactored_audio = audio[start_time:start_time + (30 * 1000)]
-    filename = secure_filename(filename)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    refactored_audio.export(file_path, format="mp3")
-    return(file_path)
+    base_name = file.filename
+    output_folder = os.path.join(os.getcwd(),"upload", os.path.splitext(base_name)[0])
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        full_clips_count = len(audio) // split_size
+        for i in range(full_clips_count):
+            start = i * split_size
+            end = start + split_size
+            clip = audio[start:end]
+            clip.export(os.path.join("upload",output_folder, f"clip_{i+1}.mp3"), format="mp3")
+    return output_folder
 
 def serialize_dict(data):
     if isinstance(data, dict):
         return {key: serialize_dict(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [serialize_dict(item) for item in data]
     elif isinstance(data, np.ndarray):
         return data.tolist()
     elif isinstance(data, (int, float, str, bool)):

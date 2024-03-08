@@ -10,6 +10,7 @@ import librosa
 import os
 from databaseConfig import connect
 import uuid
+from pydub import AudioSegment
 
 db = connect()
 cursor = cursor = db.cursor()
@@ -81,7 +82,7 @@ def gen_spectrogram_path(file_path):
     spec = transform(wav)
     plot_spectrogram(file_id, spec)
     spec_noramlised = torch.log(spec + 1e-6)
-    return spec_noramlised, file_id
+    return spec_noramlised, str(file_id)
 
 def gen_mffc_path(file_path):
     if os.name == 'posix':
