@@ -26,9 +26,14 @@
             </ol>            
         </div>
     </div>
+    <div class="feature_graph">
+        <img src="data:image/png;base64,{{ feature_plot_url }}" alt="Bar Graph of genres">
+    </div>
     <div class="resultGraphs">
-        <img src="data:image/png;base64,{{ plot_url }}" alt="Bar Graph of genres">
-        <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram">
+        <div class="genre_bar">
+            <img src="data:image/png;base64,{{ genre_plot_url }}" alt="Bar Graph of genres">
+            <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram">
+        </div>
     </div>
 </body>
 </html>

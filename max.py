@@ -104,7 +104,7 @@ def display_analysis():
         average_value = sum(values) / len(values)
         genre_averages[genre] = round(average_value,2)
 
-    buf = io.BytesIO()
+    genre_buf = io.BytesIO()
     plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
     plt.bar(plot_genres, plot_probabilities, color='purple')
     plt.xlabel('Genres', color='white')
@@ -113,12 +113,29 @@ def display_analysis():
     plt.xticks(rotation=45,color='white')
     plt.yticks(color='white')
     plt.gca().set_facecolor('none')
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    plot_url = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
+    plt.savefig(genre_buf, format='png', bbox_inches='tight')
+    genre_buf.seek(0)
+    genre_plot_url = base64.b64encode(genre_buf.getvalue()).decode('utf-8')
+    genre_buf.close()
+
+    tempo = features.popitem()
+
+    feature_buf = io.BytesIO()
+    time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
+    time = [format_time(t) for t in time]
+    plt.figure(figsize=(14, 10))
+    for feature, values in features.items():
+        plt.plot(time, values, label = feature)
+    plt.gcf().autofmt_xdate()
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Feature Value')
+    plt.title('Music Features Over Time')
+    plt.legend()
+    plt.savefig(feature_buf, format='png', bbox_inches='tight')
+    feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
+    feature_buf.close()
     
-    return render_template('analysis_results.html', plot_url=plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages)
+    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages)
 
 def predict(folder_path):
     sigmoid = torch.nn.Sigmoid()
@@ -208,6 +225,9 @@ def serialize_dict(data):
         return data
     else:
         return str(data)
+    
+def format_time(seconds):
+    return f"{seconds//60}:{seconds%60:02d}"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
