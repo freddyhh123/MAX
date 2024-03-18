@@ -70,7 +70,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
 
         probabilities = sigmoid(outputs.data)
         predictions = (probabilities > 0.5).int()
-        1==1  
+        
         total_train += labels.size(0)
         correct_train = (predictions == labels).float()
         train_sample_accuracy = correct_train.mean(dim=1)
@@ -89,13 +89,15 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     model.eval()
     with torch.no_grad():
         for inputs, genre_info in valid_loader:
+            labels = torch.stack([torch.tensor(item['top_genre']) for item in genre_info])
             inputs,labels = inputs.to(device), labels.to(device)
             labels = labels.float()
+            optimizer.zero_grad()
             outputs = model(inputs)
 
             probabilities = sigmoid(outputs.data)
-            predictions = (probabilities > 0.5).int()   
-
+            predictions = (probabilities > 0.5).int()
+            
             total_val += labels.size(0)
             correct_val = (predictions == labels).float()
             val_sample_accuracy = correct_val.mean(dim=1)

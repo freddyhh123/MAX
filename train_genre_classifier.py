@@ -153,7 +153,7 @@ def main():
                         print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
                         # Train the model with this file's tracks
                         train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
-                        sub_train_results, sub_val_results, sub_labels_predictions = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, epoch, device)
+                        #sub_train_results, sub_val_results, sub_labels_predictions = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, epoch, device)
                         # There is some odd formatting with dictionaries, so this is here just to make sure
                         # the format is right for metric calculations
                         # TODO maybe look at re-doing the formats here and in the model code
