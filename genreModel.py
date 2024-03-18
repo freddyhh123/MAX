@@ -10,33 +10,29 @@ class topGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
         super(topGenreClassifier, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
+        self.bn1 = nn.BatchNorm2d(16)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        
-        self.fc1 = nn.Linear(722400, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(2, 2)
+        # This is the size of the flattened features and the size of this layer
+        self.fc1 = nn.Linear(92736, 256)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, num_classes)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        
-        x = x.view(-1, 32 * 35 * 645)
+        x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        x = self.pool2(F.relu(self.bn3(self.conv3(x))))
+        x =x.view(x.shape[0], 92736)
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-
+        x = self.dropout(x)
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
-
-    def _forward_features(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        return x
-
-    def num_flat_features(self, x):
-        size = x.size()[1:]
-        num_features = 1
-        for s in size:
-            num_features *= s
-        return num_features
 
 def save_ckp(state, is_best):
     f_path = 'max_genre_checkpoint.pt'
@@ -72,7 +68,8 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
         outputs = model(inputs)
 
         probabilities = sigmoid(outputs.data)
-        predictions = (probabilities > 0.5).int()   
+        predictions = (probabilities > 0.5).int()
+        1==1  
         total_train += labels.size(0)
         correct_train = (predictions == labels).float()
         train_sample_accuracy = correct_train.mean(dim=1)
@@ -128,3 +125,44 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     }
     save_ckp(checkpoint, False)
     return(train_results, val_results, val_labels_batch)
+
+
+def train_sub_models(model, train_loader, valid_loader, criterion, optimizer, epoch, device, sub_genre_models):
+    sigmoid = torch.nn.Sigmoid()
+    model.to(device)
+
+    print("Training started")
+
+    model.train()
+    for inputs, labels in train_loader:
+        inputs,labels = inputs.to(device), labels.to(device)
+        labels = labels.float()
+        optimizer.zero_grad()
+        outputs = model(inputs)
+
+        probabilities = sigmoid(outputs.data)
+        predictions = (probabilities > 0.5).int()
+        1==1
+        indexes_of_guesses = [index for index, element in enumerate(predictions) if element == 1]
+
+        for index in indexes_of_guesses:
+            sub_genre_model = sub_genre_models[index]
+
+
+    model.eval()
+    with torch.no_grad():
+        for inputs, labels in valid_loader:
+            inputs,labels = inputs.to(device), labels.to(device)
+            labels = labels.float()
+            outputs = model(inputs)
+
+            probabilities = sigmoid(outputs.data)
+            predictions = (probabilities > 0.5).int()   
+
+            total_val += labels.size(0)
+            correct_val = (predictions == labels).float()
+            val_sample_accuracy = correct_val.mean(dim=1)
+            val_accuracy = val_sample_accuracy.mean().item()
+
+            loss = criterion(outputs, labels)
+            validation_loss += loss.item()

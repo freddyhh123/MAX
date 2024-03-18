@@ -13,7 +13,8 @@ from torch.nn.functional import pad
 from torch.utils.data import DataLoader
 # Local libs
 from fmaDataset import fmaDataset
-from genreModel import topGenreClassifier, train_model
+from genreModel import topGenreClassifier, train_model, train_sub_models
+from subGenreModel import SubGenreClassifier
 from prepareDataset import buildDataframe
 
 # This is our collate function, it allows the loader to process the features
@@ -62,9 +63,13 @@ def calculate_metrics(metrics, labels_predictions, train_results, val_results, e
 
 
 def main():
+    # info for generating sub-genre models, left side is genre_id
+    # right side is the number of sub_genres or outputs.
+    sub_genre_info = [30,2,7,8,1,6,3,29,4,4,19,6,12,8,19,5]
+
     # If the data isnt ready i.e. you don't have the files, uncomment
     #buildDataframe("genres", True)
-    folder_path = 'track_genre_files'
+    folder_path = 'genre_beats'
     files = [file for file in os.listdir(folder_path) if file.endswith(".pkl")]
 
     # Setting our main hyperparameters
@@ -84,6 +89,12 @@ def main():
                 criterion = nn.BCEWithLogitsLoss()
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 model.to(device)
+
+                sub_genre_models = {}
+
+                for idx, sub_genres in enumerate(sub_genre_info):
+                    sub_model = SubGenreClassifier(num_classes = sub_genres)
+                    sub_genre_models[idx] = sub_model
 
                 # If we need to use checkpoints e.g. process was stopped, uncomment
                 #if os.path.exists("max_genre_v1.pth"):
@@ -119,7 +130,7 @@ def main():
                         track_dataframe.reset_index(drop=True, inplace=True)
 
                         # Load the dataset and split into loaders
-                        dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'], labels = track_dataframe['genre_vector'], id = track_dataframe['track_id'])
+                        dataset = fmaDataset(dataframe = track_dataframe, spectrogram = track_dataframe['spectrogram'].values, mfcc = track_dataframe['mfcc'],beats = track_dataframe['beats'], labels = track_dataframe['genre_vector'], id = track_dataframe['track_id'])
                         train_df, test_df = train_test_split(dataset, test_size=0.2, train_size=0.8, random_state=666)
                         
                         train_loader = DataLoader(train_df, batch_size = batch_size, collate_fn = resize_collate, shuffle=True)
@@ -142,7 +153,7 @@ def main():
 
                         epoch_train_results['train_loss'].append(train_results['train_loss'])
                         epoch_val_results['validation_loss'].append(val_results['val_loss'])
-                    
+
                     metrics = calculate_metrics(metrics, epoch_labels_predictions, epoch_train_results, epoch_val_results, epoch)
                     append_or_create(pd.DataFrame(metrics), results_file)
 
