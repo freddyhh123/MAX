@@ -6,33 +6,48 @@
 </head>
 <body>
     <header>
-        <h1>Top Level Genre Breakdown</h1>
+        <h1>Track Analysis</h1>
     </header>
-    <div class="predictions">
-        <div class="genrePredictions">
-            <h2>Genre Predictions:</h2>
-            <ol>
-                {% for genre, (probability) in genres.items() %}
-                    <li>{{ genre }}, Confidence: {{ probability }}%</li>
-                {% endfor %}
-            </ol>            
+    <div class="main-page">
+        <div class="title">
+            <h2> Predictions for:</h2>
+            <h3> {{filename}}</h3>
         </div>
-        <div class="featurePredictions">
-            <h2>Feature Predictions:</h2>
-            <ol>
-                {% for feature, (score) in features.items() %}
-                    <li>{{ feature }}: {{ score }}</li>
-                {% endfor %}
-            </ol>            
+        <div class="predictions">
+            <div class="genrePredictions">
+                <h3>Genre Predictions:</h3>
+                <ol>
+                    {% for genre, (probability) in genres.items() %}
+                        <li>{{ genre }}, Confidence: {{ probability }}%</li>
+                    {% endfor %}
+                </ol>            
+            </div>
+            <div class="featurePredictions">
+                <h3>Feature Predictions:</h3>
+                <ol>
+                    {% for feature, (score) in features.items() %}
+                        <li>{{ feature }}: {{ score }}</li>
+                    {% endfor %}
+                </ol>            
+            </div>
         </div>
-    </div>
-    <div class="feature_graph">
-        <img src="data:image/png;base64,{{ feature_plot_url }}" alt="Bar Graph of genres">
-    </div>
-    <div class="resultGraphs">
-        <div class="genre_bar">
-            <img src="data:image/png;base64,{{ genre_plot_url }}" alt="Bar Graph of genres">
-            <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram">
+        <div class="feature_graph">
+            <img src="data:image/png;base64,{{ feature_plot_url }}" alt="Audio features over time">
+        </div>
+        <div class="resultGraphs">
+            <div class="genre_bar">
+                <div class="graph-info">
+                    <h3>Graph of top genres</h3>
+                </div>
+                <img src="data:image/png;base64,{{ genre_plot_url }}" alt="Bar Graph of genres">
+            </div>
+            <div class="mel_spec">
+                <div class="graph-info">
+                    <h3>Mel Spectrogram</h3>
+                    <p>This is part of what is used for analysis</p>
+                </div>
+                <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram">
+            </div>
         </div>
     </div>
 </body>

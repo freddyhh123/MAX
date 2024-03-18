@@ -10,6 +10,12 @@ body {
 h1 {
   color: #FFC18E;
 }
+h2 {
+  color: #CA4E79;
+}
+h3{
+  color: #7A4069;
+}
 
 #audio_upload {
   display: flex;
@@ -68,18 +74,18 @@ h1 {
   margin-left: 2rem;
   margin-right: 2rem;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   margin-top: 2rem;
 }
 
 .resultGraphs img {
-  max-width: 40%;
+  max-width: 100%;
 }
 
 .predictions {
   display: flex;
   align-items: center;
-  color: #FFC18E;
+  color: black;
   justify-content: center;
 }
 .predictions h2{
@@ -112,4 +118,51 @@ h1 {
 
 .featurePredictions ol li {
   list-style-type: none;
+}
+
+.main-page {
+  width: 80%;
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  background: white;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+}
+.title h2 {
+  margin-bottom: 0;
+  align-self: center;
+}
+.predictions h3 {
+  align-self: center;
+  justify-self: center;
+}
+.predictions div {
+  display: flex;
+  flex-direction: column;
+}
+.feature_graph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.genre_bar {
+  display: flex;
+  flex-direction: column;
+}
+
+.resultGraphs h3 {
+  margin: 0;
+}
+
+.graph-info {
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }

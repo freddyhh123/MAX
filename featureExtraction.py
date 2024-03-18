@@ -126,9 +126,9 @@ def plot_spectrogram(track_id, specgram):
     librosa.display.specshow(librosa.power_to_db(combined_specgram, ref=np.max),
                              y_axis='mel', fmax=8000, x_axis='time', sr=44100)
     plt.tight_layout()
-    plt.xlabel("Time",color='white')
-    plt.ylabel("Hz", color='white')
-    plt.xticks(color='white')
-    plt.yticks(color='white')
+    plt.xlabel("Time",color='black')
+    plt.ylabel("Hz", color='black')
+    plt.xticks(color='black')
+    plt.yticks(color='black')
     plt.gca().set_facecolor('none')
     plt.savefig("static/images/" + str(track_id) + ".png", transparent=True)

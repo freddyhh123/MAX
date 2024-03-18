@@ -22,10 +22,10 @@
             var audio_upload = new Dropzone("#audio_upload", {
                 acceptedFiles: 'audio/mpeg',
                 autoProcessQueue: false,
-                maxFiles: 3,
+                maxFiles: 1,
                 init: function() {
                     this.on("maxfilesexceeded", function(file) {
-                        alert("You can only upload a maximum of 3 files.");
+                        alert("You can only upload a maximum of 1 files.");
                     });
                     this.on("success", function(file, responseText) {
                         window.location.href = "/results";

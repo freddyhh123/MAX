@@ -26,7 +26,7 @@ script_path = os.path.abspath(__file__)
 base_path = os.path.dirname(script_path)
 
 genre_model = topGenreClassifier()
-genre_model.load_state_dict(torch.load('max_genre_v1.pth'))
+genre_model.load_state_dict(torch.load('max_genre_v4.pth'))
 genre_model.eval()
 
 feature_model = audioFeatureModel()
@@ -55,6 +55,7 @@ def upload():
         folder_path = extract_audio(file)
         predictions = predict(folder_path)
         session['predictions'] = serialize_dict(predictions)
+        session['filename'] = file.filename
 
         return redirect(url_for('display_analysis'))
     
@@ -107,11 +108,11 @@ def display_analysis():
     genre_buf = io.BytesIO()
     plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
     plt.bar(plot_genres, plot_probabilities, color='purple')
-    plt.xlabel('Genres', color='white')
-    plt.ylabel('Average Probability', color='white')
-    plt.title('Top 3 Most Common Genres and Their Average Probabilities across the track', color='white')
-    plt.xticks(rotation=45,color='white')
-    plt.yticks(color='white')
+    plt.xlabel('Genres', color='black')
+    plt.ylabel('Average Probability', color='black')
+    plt.title('Top 3 Most Common Genres and Their Average Probabilities across the track', color='black')
+    plt.xticks(rotation=45,color='black')
+    plt.yticks(color='black')
     plt.gca().set_facecolor('none')
     plt.savefig(genre_buf, format='png', bbox_inches='tight')
     genre_buf.seek(0)
@@ -135,7 +136,7 @@ def display_analysis():
     feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
     feature_buf.close()
     
-    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages)
+    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages, filename = session['filename'])
 
 def predict(folder_path):
     sigmoid = torch.nn.Sigmoid()
