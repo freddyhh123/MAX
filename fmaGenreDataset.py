@@ -1,9 +1,12 @@
+# Third-party libs
+import mysql.connector
+import pandas as pd
+# PyTorch libs
 import torch
 from torch.utils.data import Dataset, DataLoader
-import mysql.connector
-from databaseConfig import connect
-import pandas as pd
 import torch.nn.functional as F
+# Local libs
+from databaseConfig import connect
 
 db = connect()
 

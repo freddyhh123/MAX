@@ -1,16 +1,20 @@
-import torch
-import torchaudio
+# Standard Python libs
+import os
+import uuid
+# Third-party libs
 import numpy as np
-import torchaudio.transforms as T
-from torchaudio.transforms import MFCC
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # Setting the 'Agg' backend for matplotlib
 import matplotlib.pyplot as plt
 import librosa
-import os
-from databaseConfig import connect
-import uuid
 from pydub import AudioSegment
+# PyTorch libs
+import torch
+import torchaudio
+import torchaudio.transforms as T
+from torchaudio.transforms import MFCC
+# Local libs
+from databaseConfig import connect
 
 db = connect()
 cursor = cursor = db.cursor()

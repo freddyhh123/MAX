@@ -12,8 +12,17 @@ import os
 db = connect()
 cursor = cursor = db.cursor()
 
-# Converting out genres into one hot encoding
 def genres_to_binary(track, all_top_genres):
+    """
+    Converts genre vector into one hot encoding
+
+    Parameters:
+    - track (pd.Series): A pandas Series containing genre information.
+    - all_top_genres (list): A list of all top genres.
+
+    Returns:
+    - pd.Series: A pandas Series containing the one hot encoded genres.
+    """
     top_genre_ids = [genre for genre in track['top_genres']]
     top_genres = [1 if genre in top_genre_ids else 0 for genre in all_top_genres]
     sub_genre_binary = {}
@@ -30,8 +39,17 @@ def genres_to_binary(track, all_top_genres):
 
     return pd.Series([top_genres, sub_genre_binary])
 
-# This gets a list of top level genres for a track
-def get_genres(track_id, track_genres_df, genre_to_top_genre):
+def get_genres(track_id, genre_to_top_genre):
+    """
+    Gets top-level and sub-genres for a given track.
+
+    Parameters:
+    - track_id (int): Identifier of the track.
+    - genre_to_top_genre (dict): A map of sub genres to top genres
+
+    Returns:
+    - (list, list): Two lists containing top-genre IDs and sub-genre IDs.
+    """
     cursor.execute("SELECT track_id, genre_id FROM track_genres WHERE track_id = %s;",(track_id,))
     genres = cursor.fetchall()
     all_top_genres = [item for t in get_all_top_genres() for item in t]
@@ -44,7 +62,6 @@ def get_genres(track_id, track_genres_df, genre_to_top_genre):
         else:
             sub_genres.add(genre[1])
 
-    
     for genre in sub_genres:
         top_genre = genre_to_top_genre.get(genre)
         if top_genre not in top_genres:
@@ -52,15 +69,25 @@ def get_genres(track_id, track_genres_df, genre_to_top_genre):
 
     return list(top_genres), list(sub_genres)
 
-# Gets all available top level genres
 def get_all_top_genres():
+    """
+    Gets all available top level genres.
+
+    Returns:
+    - list: A list of tuples.
+    """
     query = "SELECT genre_id FROM genres WHERE genre_parent = 0"
     cursor.execute(query)
     all_top_genres = cursor.fetchall()
     return(all_top_genres)
 
-# Getting all the names for top level genres
 def all_top_genre_names():
+    """
+    Gets all names for top level genres.
+
+    Returns:
+    - list: A list of tuples.
+    """
     query = "SELECT genre_id FROM genres WHERE genre_parent = 0"
     cursor.execute(query)
     top_genre_ids = cursor.fetchall()
@@ -72,6 +99,15 @@ def all_top_genre_names():
     return(genres)
 
 def get_sub_genres(top_genre_id):
+    """
+    Gets all sub-genres for a given top-level genre.
+
+    Parameters:
+    - top_genre_id (int): Identifier of the top-level genre.
+
+    Returns:
+    - list: A list of genre_ids for sub-genres.
+    """
     query = """
     SELECT genre_id FROM genres
     WHERE top_genre = %s
@@ -81,8 +117,16 @@ def get_sub_genres(top_genre_id):
     cursor.execute(query, values)
     return [row[0] for row in cursor.fetchall()]
 
-# Find the featureset for a track
 def get_track_features(track_id):
+    """
+    Find the featureset for a track.
+
+    Parameters:
+    - track_id (int): Identifier of the track.
+
+    Returns:
+    - List: A List of features.
+    """
     query = "SELECT * FROM features WHERE featureset_id = %s"
     values = (track_id,)
     cursor.execute(query,values)
@@ -90,8 +134,18 @@ def get_track_features(track_id):
     return(features[1:9])
 
 
-# This processes and saves a chunk of tracks to a file
 def get_tracks(dataset_type, tracks_chunk, number):
+    """
+    This processes and saves a chunk of tracks to a pkl file.
+
+    Parameters:
+    - dataset_type (str): The type of dataset being processed ('features' or 'genres').
+    - tracks_chunk (list): A list of tracks to process.
+    - number (int): The file number.
+
+    Returns:
+    - None
+    """
     if dataset_type == "features":
         columns = ['track_id'] + ['track_name'] + ['file_path'] + ['time_added'] + ['trained'] + ['batch']
     else:
@@ -125,11 +179,11 @@ def get_tracks(dataset_type, tracks_chunk, number):
         tracks[['top_genres', 'sub_genres']] = tracks['track_id'].apply(lambda x: get_genres(x, track_genres_df, genre_to_top_genre)).apply(pd.Series)
         # Converting this to one hot encoding
         tracks[['genre_vector', 'sub_genre_vectors']] = tracks.apply(lambda row: genres_to_binary(row, all_top_genres), axis=1)
-        tracks['beats'] = tracks['track_id'].apply(get_rhythm_info)
 
     # Generating audio features, this is VERY resource intensive
     tracks['spectrogram'] = tracks['track_id'].apply(gen_spectrogram)
     tracks['mfcc'] = tracks['track_id'].apply(gen_mfcc)
+    tracks['beats'] = tracks['track_id'].apply(get_rhythm_info)
 
     # Saving for processing later on
     filename = f"tracks-{number}-{dataset_type}.pkl"
@@ -137,7 +191,16 @@ def get_tracks(dataset_type, tracks_chunk, number):
         pickle.dump(tracks, file)
 
 def buildDataframe(dataset_type, split):
-    # Checking if we are splitting the data
+    """
+    Builds and saves a dataframe of track data, optionally splitting the data into chunks.
+
+    Parameters:
+    - dataset_type (str): Specifies the type of data to include ('features' or 'genres').
+    - split (bool): Whether to split the data into smaller chunks.
+
+    Returns:
+    - None
+    """
     if split:
         # Features are easy!
         if dataset_type == "features":

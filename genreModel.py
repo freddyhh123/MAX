@@ -1,10 +1,13 @@
+# Standard Python libs
+import shutil
+# Third-party libs
+import pandas as pd
+import numpy as np
+from sklearn.metrics import f1_score, accuracy_score, hamming_loss
+# PyTorch libs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import f1_score, accuracy_score, hamming_loss
-import pandas as pd
-import numpy as np
-import shutil
 
 class topGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
