@@ -10,14 +10,15 @@ from databaseConfig import connect
 
 db = connect()
 
-class fmaDataset(Dataset):
-    def __init__(self, dataframe,beats, spectrogram, mfcc, labels, id):
+class fmaGenreDataset(Dataset):
+    def __init__(self, dataframe, beats , spectrogram, mfcc, top_genres, sub_genres, id):
         self.dataframe = dataframe
         self.beats = beats
         self.spectrogram = spectrogram
         self.mfcc = mfcc
         self.id = id
-        self.labels = labels
+        self.labels = top_genres
+        self.sub_genre_labels = sub_genres
 
     def __len__(self):
         return len(self.dataframe)
@@ -43,6 +44,7 @@ class fmaDataset(Dataset):
         combined_features = torch.cat([spec, mfcc, beat_vector], dim=1)
     
         label = self.labels[idx]
+        sub_genre_labels = self.sub_genre_labels[idx]
 
-        return combined_features, label
+        return combined_features, label, sub_genre_labels
 

@@ -1,22 +1,25 @@
-import torch
-import torchaudio
+# Standard Python libs
+import os
+import uuid
+# Third-party libs
 import numpy as np
-import torchaudio.transforms as T
-from torchaudio.transforms import MFCC
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # Setting the 'Agg' backend for matplotlib
 import matplotlib.pyplot as plt
 import librosa
-import os
-from databaseConfig import connect
-import uuid
 from pydub import AudioSegment
+# PyTorch libs
+import torch
+import torchaudio
+import torchaudio.transforms as T
+from torchaudio.transforms import MFCC
+# Local libs
+from databaseConfig import connect
 
 db = connect()
 cursor = cursor = db.cursor()
 
-
-def gen_spectrogram(track_id):
+def get_file(track_id):
     query = "SELECT * FROM tracks WHERE track_id = %s"
     values = (track_id,)
     cursor.execute(query, values)
@@ -24,9 +27,35 @@ def gen_spectrogram(track_id):
     track = cursor.fetchone()
 
     if os.name == 'posix':
-        track_path = track[2].replace("\\", "/")
+        return track[2].replace("\\", "/")
     else:
-        track_path = track[2]
+        return track[2]
+
+
+def get_rhythm_info(track_id):
+    track_path = get_file(track_id)
+
+    wav, sample_rate = torchaudio.load(track_path, normalize = True)
+    resample_rate = 44100
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 44100
+
+    if wav.shape[0] > 1:
+        wav = torch.mean(wav, dim=0).numpy()
+    else:
+        wav = wav.squeeze().numpy()
+
+    tempo, beats = librosa.beat.beat_track(y=wav,sr=sample_rate)
+    tempo = torch.tensor(tempo)
+    beats = torch.tensor(beats)
+
+    return tempo, beats
+
+    
+
+def gen_spectrogram(track_id):
+    track_path = get_file(track_id)
 
     wav, sample_rate = torchaudio.load(track_path, normalize = True)
 

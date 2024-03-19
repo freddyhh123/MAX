@@ -1,9 +1,12 @@
+# Standard Python libs
+import shutil
+# Third-party libs
+import numpy as np
+import pandas as pd
+# PyTorch libs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pandas as pd
-import numpy as np
-import shutil
 
 class audioFeatureModel(nn.Module):
     def __init__(self, input_channels=2, num_features=8):

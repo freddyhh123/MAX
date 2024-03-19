@@ -1,17 +1,14 @@
-# Standard Python libs
-import shutil
-# Third-party libs
-import pandas as pd
-import numpy as np
-from sklearn.metrics import f1_score, accuracy_score, hamming_loss
-# PyTorch libs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.metrics import f1_score, accuracy_score, hamming_loss
+import pandas as pd
+import numpy as np
+import shutil
 
-class topGenreClassifier(nn.Module):
+class SubGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
-        super(topGenreClassifier, self).__init__()
+        super(SubGenreClassifier, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(16)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
@@ -45,7 +42,7 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
     
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device):
+def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, epoch, device):
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
     overall_val_loss = list()
@@ -53,7 +50,6 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     epoch_validation_accuracy = list()
     val_predictions = list()
     val_labels = list()
-    model.to(device)
 
     print("Training started")
     training_loss = 0.0
@@ -63,44 +59,38 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     total_train = 0.0
     total_val = 0.0
 
-    model.train()
     for inputs, genre_info in train_loader:
-        labels = torch.stack([torch.tensor(item['top_genre']) for item in genre_info])
-        inputs,labels = inputs.to(device), labels.to(device)
-        labels = labels.float()
-        optimizer.zero_grad()
-        outputs = model(inputs)
-
-        probabilities = sigmoid(outputs.data)
-        predictions = (probabilities > 0.5).int()
-        
-        total_train += labels.size(0)
-        correct_train = (predictions == labels).float()
-        train_sample_accuracy = correct_train.mean(dim=1)
-        train_accuracy = train_sample_accuracy.mean().item()
-
-        loss = criterion(outputs, labels)
-        loss.backward()
-
-        optimizer.step()
-
-        training_loss += loss.item()
-
-        overall_train_loss.append(training_loss)
-        epoch_train_accuracy.append(train_accuracy)
+        for i in range(inputs.size(0)):
+            input_item = inputs[i].unsqueeze(0).to(device)
+            
+            sub_genres = genre_info[i]['sub_genre']
+            for sub_genre in sub_genres:
+                model = sub_genre_models[sub_genre]['model'].to(device)
+                optimizer = optimizer[sub_genre]['optimizer']
+                
+                model.train()
+                optimizer.zero_grad()
+                
+                output = model(input_item)
+                label = torch.tensor([genre_info[i]['label']]).to(device)
+                loss = criterion(outputs, label)
+                loss.backward()
+                optimizer.step()
+                
+                sub_genre_models[sub_genre]['loss'] += loss.item()
+                
+                
 
     model.eval()
     with torch.no_grad():
         for inputs, genre_info in valid_loader:
-            labels = torch.stack([torch.tensor(item['top_genre']) for item in genre_info])
             inputs,labels = inputs.to(device), labels.to(device)
             labels = labels.float()
-            optimizer.zero_grad()
             outputs = model(inputs)
 
             probabilities = sigmoid(outputs.data)
-            predictions = (probabilities > 0.5).int()
-            
+            predictions = (probabilities > 0.5).int()   
+
             total_val += labels.size(0)
             correct_val = (predictions == labels).float()
             val_sample_accuracy = correct_val.mean(dim=1)
