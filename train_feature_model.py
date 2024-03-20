@@ -120,7 +120,7 @@ def main():
                         track_dataframe.reset_index(drop=True, inplace=True)
 
                         # Load the dataset and split into loaders
-                        dataset = fmaDataset(dataframe=track_dataframe, id=track_dataframe['track_id'], spectrogram=track_dataframe['spectrogram'].values, mfcc=track_dataframe['mfcc'], labels=track_dataframe['features'])
+                        dataset = fmaDataset(dataframe=track_dataframe, id=track_dataframe['track_id'], spectrogram=track_dataframe['spectrogram'].values, mfcc=track_dataframe['mfcc'], beats=track_dataframe['beats'], labels=track_dataframe['features'])
                         train_df, test_df = train_test_split(dataset, test_size=0.3, random_state=666)
                         # Normalize the tempo column of our data
                         train_df, train_min, train_max = normalize_tempo(train_df)
