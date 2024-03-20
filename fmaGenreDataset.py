@@ -36,8 +36,9 @@ class fmaGenreDataset(Dataset):
         if spec.shape[0] == 1:
             spec = spec.repeat(2, 1, 1)
 
+        valid_beats = [beat for beat in beats[1] if beat < mfcc.shape[2]]
         beat_vector = torch.zeros(mfcc.shape[2])
-        beat_vector[beats[1]] = 1
+        beat_vector[valid_beats] = 1
         beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
         beat_vector = beat_vector.repeat(2,1,1)
 

@@ -128,6 +128,28 @@ def gen_mffc_path(file_path):
 
     return mfccs
 
+def get_rhythm_info_path(file_path):
+
+    file_id = uuid.uuid4()
+    if os.name == 'posix':
+        file_path = file_path.replace("\\", "/")
+
+    wav, sample_rate = torchaudio.load(file_path, normalize = True)
+    resample_rate = 44100
+    resampler = T.Resample(sample_rate, resample_rate, dtype=wav.dtype)
+    wav = resampler(wav)
+    sample_rate = 44100
+
+    if wav.shape[0] > 1:
+        wav = torch.mean(wav, dim=0).numpy()
+    else:
+        wav = wav.squeeze().numpy()
+
+    tempo, beats = librosa.beat.beat_track(y=wav,sr=sample_rate)
+    tempo = torch.tensor(tempo)
+    beats = torch.tensor(beats)
+
+    return tempo, beats
 
 
 def plot_waveform(track_id, waveform, sr,batchId):
