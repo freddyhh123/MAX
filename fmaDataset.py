@@ -37,9 +37,11 @@ class fmaDataset(Dataset):
 
         valid_beats = [beat for beat in beats[1] if beat < mfcc.shape[2]]
         beat_vector = torch.zeros(mfcc.shape[2])
-        beat_vector[valid_beats] = 1
+        if valid_beats:
+            valid_beats_tensor = torch.tensor(valid_beats, dtype=torch.long)
+            beat_vector[valid_beats_tensor] = 1
         beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
-        beat_vector = beat_vector.repeat(2,1,1)
+        beat_vector = beat_vector.repeat(2, 1, 1)
         
         combined_features = torch.cat([spec, mfcc, beat_vector], dim=1)
     
