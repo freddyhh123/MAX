@@ -92,15 +92,17 @@ def main():
                 model.to(device)
 
                 sub_genre_models = {}
-                sub_genre_optomizers = {}
 
                 for idx, sub_genres in enumerate(sub_genre_info):
                     sub_model = SubGenreClassifier(num_classes = sub_genres)
                     sub_genre_models[idx] = {
                         'model' : sub_model,
                         'optomizer': optim.Adam(model.parameters(), lr=learning_rate),
-                        'loss' : None,
-                        'accuracy' : [],
+                        'val_loss' : None,
+                        'train_loss': None,
+                        'val_accuracy' : [],
+                        'train_accuracy' : [],
+                        'f1_micro': [],
                         'count' : None
                     }
                     
@@ -116,9 +118,13 @@ def main():
                     # Set up all our storage variables
                     metrics = {'epoch': [], 'f1_macro': [], 'f1_micro': [], 'hamming_loss': [], 'subset_accuracy': [], 'validation_accuracy': [], 'train_accuracy': [], 'validation_loss':[], 'train_loss':[]}
                     for idx in sub_genre_models:
-                        sub_genre_models[idx]['loss'] = 0.0
-                        sub_genre_models[idx]['accuracy'] = []
+                        sub_genre_models[idx]['val_loss'] = 0.0
+                        sub_genre_models[idx]['train_loss'] = 0.0
+                        sub_genre_models[idx]['val_accuracy'] = []
+                        sub_genre_models[idx]['train_accuracy'] = []
+                        sub_genre_models[idx]['f1_micro'] = []
                         sub_genre_models[idx]['count'] = 0
+            
                     epoch_val_results = {
                         'validation_accuracy' : list(),
                         'validation_loss' : list()
@@ -153,7 +159,7 @@ def main():
                         print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
                         # Train the model with this file's tracks
                         train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
-                        #sub_train_results, sub_val_results, sub_labels_predictions = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, epoch, device)
+                        sub_genre_models = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, epoch, device)
                         # There is some odd formatting with dictionaries, so this is here just to make sure
                         # the format is right for metric calculations
                         # TODO maybe look at re-doing the formats here and in the model code

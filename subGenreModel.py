@@ -44,16 +44,8 @@ def save_ckp(state, is_best):
 
 def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, epoch, device):
     sigmoid = torch.nn.Sigmoid()
-    overall_train_loss = list()
-    overall_val_loss = list()
-    epoch_train_accuracy = list()
-    epoch_validation_accuracy = list()
-    val_predictions = list()
-    val_labels = list()
 
     print("Training started")
-    training_loss = 0.0
-    validation_loss = 0.0
     correct_train = 0.0
     correct_val = 0.0
     total_train = 0.0
@@ -66,58 +58,60 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, ep
             sub_genres = genre_info[i]['sub_genre']
             for sub_genre in sub_genres:
                 model = sub_genre_models[sub_genre]['model'].to(device)
-                optimizer = optimizer[sub_genre]['optimizer']
+                optimizer = sub_genre_models[sub_genre]['optomizer']
                 
                 model.train()
                 optimizer.zero_grad()
                 
                 output = model(input_item)
-                label = torch.tensor([genre_info[i]['label']]).to(device)
-                loss = criterion(outputs, label)
+                label = torch.tensor(sub_genres[sub_genre]).unsqueeze(0).float().to(device)
+                loss = criterion(output, label)
                 loss.backward()
                 optimizer.step()
+
+                probabilities = sigmoid(output.data)
+                predictions = (probabilities > 0.3).int()
+                total_train += label.size(0)
+                correct_train = (predictions == label).float()
+                train_sample_accuracy = correct_train.mean(dim=1)
+                sub_genre_models[sub_genre]['train_accuracy'].append(train_sample_accuracy.mean().item())
                 
-                sub_genre_models[sub_genre]['loss'] += loss.item()
-                
-                
+                sub_genre_models[sub_genre]['train_loss'] += loss.item()
+
+                sub_genre_models[sub_genre]['count'] += 1
 
     model.eval()
     with torch.no_grad():
         for inputs, genre_info in valid_loader:
-            inputs,labels = inputs.to(device), labels.to(device)
-            labels = labels.float()
-            outputs = model(inputs)
+            for i in range(inputs.size(0)):
+                input_item = inputs[i].unsqueeze(0).to(device)
+                
+                sub_genres = genre_info[i]['sub_genre']
+                for sub_genre in sub_genres:
+                    model = sub_genre_models[sub_genre]['model'].to(device)
+                    optimizer = sub_genre_models[sub_genre]['optomizer']
+                    
+                    model.train()
+                    optimizer.zero_grad()
+                    
+                    output = model(input_item)
+                    label = torch.tensor(sub_genres[sub_genre]).unsqueeze(0).float().to(device)
+                    loss = criterion(output, label)
 
-            probabilities = sigmoid(outputs.data)
-            predictions = (probabilities > 0.5).int()   
+                    probabilities = sigmoid(output.data)
+                    predictions = (probabilities > 0.3).int()
+                    total_val += label.size(0)
+                    correct_val = (predictions == label).float()
+                    val_sample_accuracy = correct_val.mean(dim=1)
+                    sub_genre_models[sub_genre]['val_accuracy'].append(val_sample_accuracy.mean().item())
+                    
+                    sub_genre_models[sub_genre]['val_loss'] += loss.item()
 
-            total_val += labels.size(0)
-            correct_val = (predictions == labels).float()
-            val_sample_accuracy = correct_val.mean(dim=1)
-            val_accuracy = val_sample_accuracy.mean().item()
+                    sub_genre_models[sub_genre]['count'] += 1
 
-            loss = criterion(outputs, labels)
-            validation_loss += loss.item()
-            val_predictions.append(predictions.cpu())
-            val_labels.append(labels.cpu())
-
-            overall_val_loss.append(validation_loss)
-
-    train_results  = {
-        'train_accuracy': sum(epoch_train_accuracy) / len(epoch_train_accuracy),
-        'train_loss' : sum(overall_train_loss) / len(overall_train_loss)
-    }
-    val_results = {
-        'val_accuracy': val_accuracy,
-        'val_loss' : sum(overall_val_loss) / len(overall_val_loss),
-    }
-    val_labels_batch = {
-        'labels' : val_labels,
-        'predictions' : val_predictions
-    }
     checkpoint = {
     'state_dict': model.state_dict(),
     'optimizer': optimizer.state_dict()
     }
     save_ckp(checkpoint, False)
-    return(train_results, val_results, val_labels_batch)
+    return(sub_genre_models)

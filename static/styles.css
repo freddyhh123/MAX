@@ -126,6 +126,7 @@ h3{
   flex-direction: column;
   margin: auto;
   background: white;
+  border-radius: 5px;
 }
 
 .title {

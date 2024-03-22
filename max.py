@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import io
 from featureExtraction import gen_spectrogram_path
 from featureExtraction import gen_mffc_path
+from featureExtraction import get_rhythm_info_path
 from prepareDataset import all_top_genre_names
 import numpy as np
 import re
@@ -26,7 +27,7 @@ script_path = os.path.abspath(__file__)
 base_path = os.path.dirname(script_path)
 
 genre_model = topGenreClassifier()
-genre_model.load_state_dict(torch.load('max_genre_v4.pth'))
+genre_model.load_state_dict(torch.load('max_genre_v5.pth'))
 genre_model.eval()
 
 feature_model = audioFeatureModel()
@@ -105,6 +106,8 @@ def display_analysis():
         average_value = sum(values) / len(values)
         genre_averages[genre] = round(average_value,2)
 
+    genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
+
     genre_buf = io.BytesIO()
     plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
     plt.bar(plot_genres, plot_probabilities, color='purple')
@@ -149,12 +152,18 @@ def predict(folder_path):
         file_path = os.path.join(folder_path,file)
         spec, file_id = gen_spectrogram_path(file_path)
         mfcc = gen_mffc_path(file_path)
+        beats = get_rhythm_info_path(file_path)
+
         spec = spec[..., :2580]
         mfcc = mfcc[..., :2580]
+        beat_vector = torch.zeros(mfcc.shape[2])
+        beat_vector[beats[1]] = 1
+        beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
+        beat_vector = beat_vector.repeat(2,1,1)
 
-        combined_features = torch.cat([spec, mfcc], dim=1)
+        combined_features = torch.cat([spec, mfcc, beat_vector], dim=1)
         with torch.no_grad():
-            genre_prediction = genre_model(combined_features)
+            genre_prediction = genre_model(combined_features.unsqueeze(0))
             feature_prediction = feature_model(combined_features.unsqueeze(0))
 
             genre_probabilities = sigmoid(genre_prediction.data)
@@ -190,8 +199,8 @@ def predict(folder_path):
         prediction_data = {
             "file_id": file_id,
             "top_prediction": {
-            "genre": top_prediction,
-            "probability": top_probability
+              "genre": top_prediction,
+              "probability": top_probability
             },
             "top_3_predictions": top3_genres,
             "feature_predictions": features
