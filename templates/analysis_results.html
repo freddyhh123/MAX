@@ -34,6 +34,23 @@
         <div class="feature_graph">
             <img src="data:image/png;base64,{{ feature_plot_url }}" alt="Audio features over time">
         </div>
+        <div class="track_recomendations">
+            <h2>Closest Tracks</h2>
+            <p>These are the closest tracks to yours from our database</p>
+            <ul>
+                {% for track in nearest_track_info %}
+                            <li>
+                                <p>{{ track[0] }}</p> 
+                                {% if track[2] %} <p>Artist: </p> <a href="{{ track[2] }}">{{ track[1] }}</a>
+                                {% else %} <p>Artist: {{ track[1] }}</p>
+                                {% endif %}
+                                {% if track[4] %} <p>Album: </p> <a href="{{ track[4] }}">{{ track[3] }}</a> 
+                                {% else %} <p>Album: {{ track[3] }}</p>
+                                {% endif %}
+                            </li>
+                {% endfor %}
+            </ul>
+        </div>
         <div class="resultGraphs">
             <div class="genre_bar">
                 <div class="graph-info">

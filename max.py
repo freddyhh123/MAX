@@ -19,6 +19,9 @@ import base64
 import json
 from uuid import UUID
 from collections import Counter
+from annoy import AnnoyIndex
+from itertools import islice
+from databaseConfig import connect
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -34,9 +37,15 @@ feature_model = audioFeatureModel()
 feature_model.load_state_dict(torch.load('max_feature_v1.pth'))
 feature_model.eval()
 
+ann_index = AnnoyIndex(6, 'euclidean')
+ann_index.load('ANN_tracks_index.ann')
+
 app.config['UPLOAD_FOLDER'] = os.path.join(base_path, 'upload')
 app.config['TOP_GENRES'] = all_top_genre_names()
 app.static_folder = 'static'
+
+db = connect()
+cursor = db.cursor()
 
 @app.route('/')
 def index():
@@ -86,7 +95,6 @@ def display_analysis():
             else:
                 features[feature] = [value]
 
-
     most_common_genres = [genre for genre, _ in genre_counts.most_common(3)]
 
     plot_genres = []
@@ -96,17 +104,15 @@ def display_analysis():
         plot_genres.append(genre)
         plot_probabilities.append(average_probability)
 
-    feature_averages = {}
-    for feature, values in features.items():
-        average_value = sum(values) / len(values)
-        feature_averages[feature] = round(average_value,2)
-
-    genre_averages = {}
-    for genre, values in genre_probabilities.items():
-        average_value = sum(values) / len(values)
-        genre_averages[genre] = round(average_value,2)
+    feature_averages = average_dict(features)
+    genre_averages = average_dict(genre_probabilities)
 
     genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
+
+    if len(genre_averages) > 5:
+        genre_averages = dict(islice(genre_averages.items(), 5))
+
+    nearest_track_info = get_nearest_tracks(feature_averages)
 
     genre_buf = io.BytesIO()
     plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
@@ -139,7 +145,7 @@ def display_analysis():
     feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
     feature_buf.close()
     
-    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages, filename = session['filename'])
+    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages, filename = session['filename'],nearest_track_info=nearest_track_info)
 
 def predict(folder_path):
     sigmoid = torch.nn.Sigmoid()
@@ -193,7 +199,7 @@ def predict(folder_path):
             "Instrumentalness": feature_prediction[4],
             "Liveness": feature_prediction[5],
             "Valence": feature_prediction[6],
-            "tempo": feature_prediction[7]
+            "tempo": beats[0].item()
         }
 
         prediction_data = {
@@ -238,6 +244,38 @@ def serialize_dict(data):
     
 def format_time(seconds):
     return f"{seconds//60}:{seconds%60:02d}"
+
+def get_nearest_tracks(track_features):
+    track_ids, distances = ann_index.get_nns_by_vector(list(islice(track_features.values(), 6)), 3, include_distances=True)
+    track_info = []
+    for idx, track in enumerate(track_ids):
+        query = """
+        SELECT 
+            t.track_name, 
+            ar.artist_name, 
+            ar.artist_url AS artist_link,
+            alb.album_name,  
+            alb.album_link AS album_link
+        FROM tracks t
+        JOIN album_tracks at ON t.track_id = at.track_id
+        JOIN albums alb ON at.album_id = alb.album_id
+        JOIN artists_tracks art ON t.track_id = art.track_id
+        JOIN artists ar ON art.artist_id = ar.artist_id
+        WHERE t.track_id = %s;
+        """
+        cursor.execute(query,(track,))
+        track = list(cursor.fetchone())
+        track.append(distances[idx])
+        track_info.append(track)
+    return track_info
+
+def average_dict(dict):
+    averages = {}
+    for item, values in dict.items():
+        if isinstance(values, list):
+            average_value = sum(values) / len(values)
+            averages[item] = round(average_value,2)
+    return averages
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')

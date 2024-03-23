@@ -167,3 +167,30 @@ h3{
   flex-direction: column;
   align-items: center;
 }
+
+.track_recomendations {
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.track_recomendations li {
+  list-style-type: none;
+  margin: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 5px;
+  width: 33%;
+  border: solid;
+  border-color: purple;
+}
+.track_recomendations ul {
+  display: flex;
+}
+.track_recomendations li p {
+  margin: 0.2rem;
+}
