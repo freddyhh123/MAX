@@ -127,9 +127,9 @@ def main():
     files = [file for file in os.listdir(folder_path) if file.endswith(".pkl")]
 
     # Setting our main hyperparameters
-    batch_sizes = [10,25,50]
+    batch_sizes = [10,25, 50]
     learning_rates = [0.0001,0.001,0.01,0.1,0.25]
-    epoch_sizes = [10,25,50,100,250,500]
+    epoch_sizes = [10,25,50,100,250]
 
     for epoch_size in epoch_sizes:
         for batch_size in batch_sizes:
