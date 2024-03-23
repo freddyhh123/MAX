@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast
 
 class audioFeatureModel(nn.Module):
     def __init__(self, input_channels=2, num_features=8):
@@ -38,7 +39,7 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
 
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, scaler, epoch, device):
     overall_train_loss = list()
     overall_val_loss = list()
     val_predictions = list()
@@ -52,24 +53,35 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     for inputs, labels in train_loader:
         inputs, labels = inputs.to(device).float(), labels.to(device).float()
         optimizer.zero_grad()
-        outputs = model(inputs).float()
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+        with autocast():
+            outputs = model(inputs).float()
+            loss = criterion(outputs, labels)
+
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         training_loss += loss.item()
 
         overall_train_loss.append(training_loss)
+
+        del labels, outputs, loss
 
     model.eval()
     with torch.no_grad():
         for inputs, labels in valid_loader:
             inputs, labels = inputs.to(device).float(), labels.to(device).float()
-            outputs = model(inputs).float()
-            loss = criterion(outputs, labels)
+            with autocast():
+                outputs = model(inputs).float()
+                loss = criterion(outputs, labels)
             validation_loss += loss.item()
             val_predictions.append(outputs.cpu())
             val_labels.append(labels.cpu())
             overall_val_loss.append(validation_loss)
+
+            del labels, outputs, loss
+
+
+    torch.cuda.empty_cache()
 
     train_results  = {
         'train_loss' : sum(overall_train_loss) / len(overall_train_loss)
