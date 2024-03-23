@@ -11,7 +11,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.functional import pad
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler
 # Local libs
+from max_utils import load_ckp, append_or_create
 from fmaGenreDataset import fmaGenreDataset
 from genreModel import topGenreClassifier, train_model
 from subGenreModel import SubGenreClassifier, train_sub_models
@@ -24,23 +26,6 @@ def resize_collate(batch):
     genre_info = [{'top_genre': top_genre, 'sub_genre': sub_genre} 
                   for _, top_genre, sub_genre in batch]
     return torch.stack(processed_features), genre_info
-
-# Loads a checkpoint for training
-def load_ckp(checkpoint_fpath, model, optimizer):
-    checkpoint = torch.load(checkpoint_fpath)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-    return model, optimizer
-
-# This checks whether a file exists then writes appends to it.
-def append_or_create(results_dataframe, file_path):
-    if os.path.exists(file_path):
-        existing_dataframe = pd.read_csv(file_path)
-        updated_dataframe = pd.concat([existing_dataframe, results_dataframe], ignore_index=True)
-    else:
-        updated_dataframe = results_dataframe
-
-    updated_dataframe.to_csv(file_path, index=False)
 
 # This calculates our genre metrics and outputs them ready for file export
 def calculate_metrics(metrics, labels_predictions, train_results, val_results, epoch):
@@ -62,12 +47,70 @@ def calculate_metrics(metrics, labels_predictions, train_results, val_results, e
     metrics['subset_accuracy'].append(accuracy_score(val_all_labels, val_all_predictions))
     return metrics
 
+def initialize_metrics(sub_genre_models):
+    for idx in sub_genre_models:
+        sub_genre_models[idx]['val_loss'] = 0.0
+        sub_genre_models[idx]['train_loss'] = 0.0
+        sub_genre_models[idx]['val_accuracy'] = []
+        sub_genre_models[idx]['train_accuracy'] = []
+        sub_genre_models[idx]['f1_micro'] = []
+        sub_genre_models[idx]['train_count'] = 0
+        sub_genre_models[idx]['val_count'] = 0
+    return {'epoch': [], 'f1_macro': [], 'f1_micro': [], 'hamming_loss': [], 'subset_accuracy': [], 'validation_accuracy': [], 'train_accuracy': [], 'validation_loss':[], 'train_loss':[]}, sub_genre_models
+
+def update_epoch_results(epoch_results, train_results, val_results):
+    epoch_results['validation_accuracy'].append(val_results['val_accuracy'])
+    epoch_results['train_accuracy'].append(train_results['train_accuracy'])
+    epoch_results['train_loss'].append(train_results['train_loss'])
+    epoch_results['validation_loss'].append(val_results['val_loss'])
+    return epoch_results
+
+def average_sub_genre_metrics(sub_genre_models, epoch):
+    metrics_to_keep = ['val_loss', 'train_loss', 'val_accuracy', 'train_accuracy', 'f1_micro','train_count','val_count']
+    metrics_to_average = ['val_accuracy', 'train_accuracy', 'f1_micro']
+    sub_genre_metrics = []
+
+    for model_id, metrics in sub_genre_models.items():
+        record = {"model_id": model_id, "epoch": epoch}
+        
+        for metric in metrics_to_keep:
+            if metric in metrics:
+                value = metrics[metric]
+                # Check if this metric needs averaging
+                if isinstance(value, list) and metric in metrics_to_average:
+                    record[metric] = sum(value) / len(value) if value else None
+                else:
+                    record[metric] = value
+            else:
+                record[metric] = None
+        
+        sub_genre_metrics.append(record)
+
+    # Convert to dataframe for saving
+    return(pd.DataFrame(sub_genre_metrics))
+
+
+def initialize_sub_genre_models(learning_rate):
+    # info for generating sub-genre models, left side is genre_id
+    # right side is the number of sub_genres or outputs
+    sub_genre_models = {}
+    sub_genre_info = [30,2,7,8,1,6,3,29,4,4,19,6,12,8,19,5]
+    for idx, sub_genres in enumerate(sub_genre_info):
+                    sub_model = SubGenreClassifier(num_classes = sub_genres)
+                    sub_genre_models[idx] = {
+                        'model' : sub_model,
+                        'optomizer': optim.Adam(sub_model.parameters(), lr=learning_rate),
+                        'val_loss' : None,
+                        'train_loss': None,
+                        'val_accuracy' : [],
+                        'train_accuracy' : [],
+                        'f1_micro': [],
+                        'val_count' : None,
+                        'train_count': None
+                    }
+    return sub_genre_models
 
 def main():
-    # info for generating sub-genre models, left side is genre_id
-    # right side is the number of sub_genres or outputs.
-    sub_genre_info = [30,2,7,8,1,6,3,29,4,4,19,6,12,8,19,5]
-
     # If the data isnt ready i.e. you don't have the files, uncomment
     #buildDataframe("genres", True)
     folder_path = 'genre_beats'
@@ -81,32 +124,22 @@ def main():
     for epoch_size in epoch_sizes:
         for batch_size in batch_sizes:
             for learning_rate in learning_rates:
+                # Filename for results
                 results_file = str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-genre"+"_results.csv"
-                print("epoch_size : "+str(epoch_size)+"-batch_size: "+str(batch_size)+"-learning_rate: "+str(learning_rate))
+                sub_genre_results_file = str(epoch_size)+"-"+str(batch_size)+"-"+str(learning_rate)+"-sub_genre"+"_results.csv"
+
+                print("epoch_size : "+str(epoch_size)+" - batch_size: "+str(batch_size)+" - learning_rate: "+str(learning_rate))
                 # Initialise the model and find whether we have CUDA available
                 # TODO, ensure non cuda support
                 model = topGenreClassifier()
                 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
                 criterion = nn.BCEWithLogitsLoss()
+                top_genre_scaler = GradScaler()
+                sub_genre_scaler = GradScaler()
+                sub_genre_models = initialize_sub_genre_models(learning_rate)
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 model.to(device)
-
-                sub_genre_models = {}
-
-                for idx, sub_genres in enumerate(sub_genre_info):
-                    sub_model = SubGenreClassifier(num_classes = sub_genres)
-                    sub_genre_models[idx] = {
-                        'model' : sub_model,
-                        'optomizer': optim.Adam(model.parameters(), lr=learning_rate),
-                        'val_loss' : None,
-                        'train_loss': None,
-                        'val_accuracy' : [],
-                        'train_accuracy' : [],
-                        'f1_micro': [],
-                        'count' : None
-                    }
                     
-
                 # If we need to use checkpoints e.g. process was stopped, uncomment
                 #if os.path.exists("max_genre_v1.pth"):
                     #model.load_state_dict(torch.load("max_genre_v1.pth"))
@@ -116,14 +149,7 @@ def main():
                 
                 for epoch in range(epoch_size):
                     # Set up all our storage variables
-                    metrics = {'epoch': [], 'f1_macro': [], 'f1_micro': [], 'hamming_loss': [], 'subset_accuracy': [], 'validation_accuracy': [], 'train_accuracy': [], 'validation_loss':[], 'train_loss':[]}
-                    for idx in sub_genre_models:
-                        sub_genre_models[idx]['val_loss'] = 0.0
-                        sub_genre_models[idx]['train_loss'] = 0.0
-                        sub_genre_models[idx]['val_accuracy'] = []
-                        sub_genre_models[idx]['train_accuracy'] = []
-                        sub_genre_models[idx]['f1_micro'] = []
-                        sub_genre_models[idx]['count'] = 0
+                    metrics, sub_genre_models = initialize_metrics(sub_genre_models)
             
                     epoch_val_results = {
                         'validation_accuracy' : list(),
@@ -137,6 +163,7 @@ def main():
                         'labels' : [],
                         'predictions' : []
                     }
+
                     print("Epoch: "+str(epoch + 1)+"/"+str(epoch_size))
                     for idx, file_name in enumerate(files):
 
@@ -158,8 +185,8 @@ def main():
                         print("Analysing file: " + str(file_name) + "File no: "+ str(idx + 1) +"/"+ str(len(files)))
                         print("Tracks to analyse: "+str(len(track_dataframe.index)+1))
                         # Train the model with this file's tracks
-                        train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, epoch, device)
-                        sub_genre_models = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, epoch, device)
+                        train_results, val_results, labels_predictions = train_model(model, train_loader, test_loader, criterion, optimizer, top_genre_scaler, epoch, device)
+                        sub_genre_models = train_sub_models(sub_genre_models, train_loader, test_loader, criterion, sub_genre_scaler, epoch, device)
                         # There is some odd formatting with dictionaries, so this is here just to make sure
                         # the format is right for metric calculations
                         # TODO maybe look at re-doing the formats here and in the model code
@@ -175,6 +202,7 @@ def main():
 
                     metrics = calculate_metrics(metrics, epoch_labels_predictions, epoch_train_results, epoch_val_results, epoch)
                     append_or_create(pd.DataFrame(metrics), results_file)
+                    append_or_create(average_sub_genre_metrics(sub_genre_models, epoch), sub_genre_results_file)
 
                     # Save our progress just in case!
                     torch.save({
