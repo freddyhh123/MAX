@@ -5,6 +5,7 @@ from sklearn.metrics import f1_score, accuracy_score, hamming_loss
 import pandas as pd
 import numpy as np
 import shutil
+from torch.cuda.amp import autocast
 
 class SubGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
@@ -42,10 +43,10 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
     
 
-def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, epoch, device):
+def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, scaler, epoch, device):
     sigmoid = torch.nn.Sigmoid()
 
-    print("Training started")
+    print("Sub-genre training started")
     correct_train = 0.0
     correct_val = 0.0
     total_train = 0.0
@@ -62,12 +63,16 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, ep
                 
                 model.train()
                 optimizer.zero_grad()
-                
-                output = model(input_item)
+
                 label = torch.tensor(sub_genres[sub_genre]).unsqueeze(0).float().to(device)
-                loss = criterion(output, label)
-                loss.backward()
-                optimizer.step()
+                
+                with autocast():
+                    output = model(input_item)
+                    loss = criterion(output, label)
+
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
 
                 probabilities = sigmoid(output.data)
                 predictions = (probabilities > 0.3).int()
@@ -75,10 +80,10 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, ep
                 correct_train = (predictions == label).float()
                 train_sample_accuracy = correct_train.mean(dim=1)
                 sub_genre_models[sub_genre]['train_accuracy'].append(train_sample_accuracy.mean().item())
-                
                 sub_genre_models[sub_genre]['train_loss'] += loss.item()
+                sub_genre_models[sub_genre]['train_count'] += 1
 
-                sub_genre_models[sub_genre]['count'] += 1
+                del label, output, loss
 
     model.eval()
     with torch.no_grad():
@@ -93,21 +98,26 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, ep
                     
                     model.train()
                     optimizer.zero_grad()
-                    
-                    output = model(input_item)
+
                     label = torch.tensor(sub_genres[sub_genre]).unsqueeze(0).float().to(device)
-                    loss = criterion(output, label)
+                    
+                    with autocast():
+                        output = model(input_item)
+                        loss = criterion(output, label)
 
                     probabilities = sigmoid(output.data)
-                    predictions = (probabilities > 0.3).int()
+                    prediction = (probabilities > 0.3).int()
                     total_val += label.size(0)
-                    correct_val = (predictions == label).float()
+                    correct_val = (prediction == label).float()
                     val_sample_accuracy = correct_val.mean(dim=1)
                     sub_genre_models[sub_genre]['val_accuracy'].append(val_sample_accuracy.mean().item())
-                    
                     sub_genre_models[sub_genre]['val_loss'] += loss.item()
+                    sub_genre_models[sub_genre]['f1_micro'].append(f1_score(label.cpu(), prediction.cpu(), average='micro'))
+                    sub_genre_models[sub_genre]['val_count'] += 1
 
-                    sub_genre_models[sub_genre]['count'] += 1
+                    del label, output, loss
+    
+    torch.cuda.empty_cache()
 
     checkpoint = {
     'state_dict': model.state_dict(),

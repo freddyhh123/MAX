@@ -8,6 +8,7 @@ from sklearn.metrics import f1_score, accuracy_score, hamming_loss
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast
 
 class topGenreClassifier(nn.Module):
     def __init__(self, input_channels=2, num_classes=16):
@@ -45,7 +46,7 @@ def save_ckp(state, is_best):
         shutil.copyfile(f_path, best_fpath)
     
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, device):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, scaler, epoch, device):
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
     overall_val_loss = list()
@@ -55,7 +56,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
     val_labels = list()
     model.to(device)
 
-    print("Training started")
+    print("Top-level genre training started")
     training_loss = 0.0
     validation_loss = 0.0
     correct_train = 0.0
@@ -69,7 +70,10 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
         inputs,labels = inputs.to(device), labels.to(device)
         labels = labels.float()
         optimizer.zero_grad()
-        outputs = model(inputs)
+
+        with autocast():
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
 
         probabilities = sigmoid(outputs.data)
         predictions = (probabilities > 0.5).int()
@@ -79,15 +83,16 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
         train_sample_accuracy = correct_train.mean(dim=1)
         train_accuracy = train_sample_accuracy.mean().item()
 
-        loss = criterion(outputs, labels)
-        loss.backward()
-
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         training_loss += loss.item()
 
         overall_train_loss.append(training_loss)
         epoch_train_accuracy.append(train_accuracy)
+
+        del labels, outputs, loss
 
     model.eval()
     with torch.no_grad():
@@ -96,7 +101,9 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
             inputs,labels = inputs.to(device), labels.to(device)
             labels = labels.float()
             optimizer.zero_grad()
-            outputs = model(inputs)
+            with autocast():
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
 
             probabilities = sigmoid(outputs.data)
             predictions = (probabilities > 0.5).int()
@@ -106,12 +113,15 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, epoch, 
             val_sample_accuracy = correct_val.mean(dim=1)
             val_accuracy = val_sample_accuracy.mean().item()
 
-            loss = criterion(outputs, labels)
             validation_loss += loss.item()
             val_predictions.append(predictions.cpu())
             val_labels.append(labels.cpu())
 
             overall_val_loss.append(validation_loss)
+
+            del labels, outputs, loss
+
+    torch.cuda.empty_cache()
 
     train_results  = {
         'train_accuracy': sum(epoch_train_accuracy) / len(epoch_train_accuracy),
