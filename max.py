@@ -128,8 +128,6 @@ def display_analysis():
     genre_plot_url = base64.b64encode(genre_buf.getvalue()).decode('utf-8')
     genre_buf.close()
 
-    tempo = features.popitem()
-
     feature_buf = io.BytesIO()
     time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
     time = [format_time(t) for t in time]

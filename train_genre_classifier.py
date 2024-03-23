@@ -13,7 +13,7 @@ from torch.nn.functional import pad
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler
 # Local libs
-from max_utils import load_ckp, append_or_create
+from maxUtils import load_ckp, append_or_create
 from fmaGenreDataset import fmaGenreDataset
 from genreModel import topGenreClassifier, train_model
 from subGenreModel import SubGenreClassifier, train_sub_models
@@ -67,7 +67,7 @@ def update_epoch_results(epoch_results, train_results, val_results):
 
 def average_sub_genre_metrics(sub_genre_models, epoch):
     metrics_to_keep = ['val_loss', 'train_loss', 'val_accuracy', 'train_accuracy', 'f1_micro','train_count','val_count']
-    metrics_to_average = ['val_accuracy', 'train_accuracy', 'f1_micro']
+    metrics_to_average = ['val_loss','train_loss','val_accuracy', 'train_accuracy', 'f1_micro']
     sub_genre_metrics = []
 
     for model_id, metrics in sub_genre_models.items():
@@ -79,6 +79,11 @@ def average_sub_genre_metrics(sub_genre_models, epoch):
                 # Check if this metric needs averaging
                 if isinstance(value, list) and metric in metrics_to_average:
                     record[metric] = sum(value) / len(value) if value else None
+                elif metric in metrics_to_average:
+                    if metric == 'val_loss':
+                        record[metric] = value / metrics['val_count'] if value else None
+                    elif metric == 'train_loss':
+                        record[metric] = value / metrics['train_count'] if value else None
                 else:
                     record[metric] = value
             else:
@@ -89,6 +94,11 @@ def average_sub_genre_metrics(sub_genre_models, epoch):
     # Convert to dataframe for saving
     return(pd.DataFrame(sub_genre_metrics))
 
+def save_sub_models(sub_genre_models):
+    for idx, model_info in sub_genre_models.items():
+        model = model_info['model']
+        file_name = "max_sub_genre_"+str(idx)+".pth"
+        torch.save(model.state_dict(), file_name)
 
 def initialize_sub_genre_models(learning_rate):
     # info for generating sub-genre models, left side is genre_id
@@ -212,6 +222,7 @@ def main():
                     }, "max_genre_checkpoint.pt")
 
             torch.save(model.state_dict(), "max_genre_v3.pth")
+            save_sub_models(sub_genre_models)
 
 if __name__ == "__main__":
     main()

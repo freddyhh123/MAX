@@ -51,6 +51,8 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, sc
     correct_val = 0.0
     total_train = 0.0
     total_val = 0.0
+    training_loss = 0.0
+    validation_loss = 0.0
 
     for inputs, genre_info in train_loader:
         for i in range(inputs.size(0)):
@@ -74,6 +76,7 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, sc
                 scaler.step(optimizer)
                 scaler.update()
 
+                training_loss += loss.item()
                 probabilities = sigmoid(output.data)
                 predictions = (probabilities > 0.3).int()
                 total_train += label.size(0)
@@ -105,6 +108,7 @@ def train_sub_models(sub_genre_models, train_loader, valid_loader, criterion, sc
                         output = model(input_item)
                         loss = criterion(output, label)
 
+                    validation_loss += loss.item()  
                     probabilities = sigmoid(output.data)
                     prediction = (probabilities > 0.3).int()
                     total_val += label.size(0)
