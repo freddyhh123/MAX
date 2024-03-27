@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, render_template, session
+from flask import Flask, request, redirect, url_for, render_template, session, after_this_request
 from werkzeug.utils import secure_filename
 import torch
 from genreModel import topGenreClassifier
@@ -22,6 +22,11 @@ from collections import Counter
 from annoy import AnnoyIndex
 from itertools import islice
 from databaseConfig import connect
+import csv
+from werkzeug.utils import secure_filename
+from flask import send_file
+import shutil
+
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -34,11 +39,14 @@ genre_model.load_state_dict(torch.load('max_genre_v5.pth'))
 genre_model.eval()
 
 feature_model = audioFeatureModel()
-feature_model.load_state_dict(torch.load('max_feature_v1.pth'))
+feature_model.load_state_dict(torch.load('max_feature_v4.pth'))
 feature_model.eval()
 
-ann_index = AnnoyIndex(6, 'euclidean')
-ann_index.load('ANN_tracks_index.ann')
+genre_features = []
+with open("genre_averages.csv", 'r') as file:
+    reader = csv.reader(file)
+    for i, genre in enumerate(reader):
+        genre_features.append(genre[1:9])
 
 app.config['UPLOAD_FOLDER'] = os.path.join(base_path, 'upload')
 app.config['TOP_GENRES'] = all_top_genre_names()
@@ -61,11 +69,11 @@ def upload():
     if file.filename == '':
         return 'No selected file'
 
-    if file:
+    if file: 
         folder_path = extract_audio(file)
         predictions = predict(folder_path)
         session['predictions'] = serialize_dict(predictions)
-        session['filename'] = file.filename
+        session['filename'] = secure_filename(file.filename)
 
         return redirect(url_for('display_analysis'))
     
@@ -78,6 +86,7 @@ def display_analysis():
     genre_probabilities = {}
     genre_counts = Counter()
     features = {}
+    beat_grid = session['beat_grid']
 
     for file in prediction_list:
         for prediction_str in file['top_3_predictions']:
@@ -105,6 +114,7 @@ def display_analysis():
         plot_probabilities.append(average_probability)
 
     feature_averages = average_dict(features)
+    chart_data = [feature_averages['Acousticness'], feature_averages['Danceability'], feature_averages['Energy'], feature_averages['Instrumentalness'], feature_averages['Liveness'], feature_averages['Speechiness'], feature_averages['Valence']]
     genre_averages = average_dict(genre_probabilities)
 
     genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
@@ -124,6 +134,7 @@ def display_analysis():
     plt.yticks(color='black')
     plt.gca().set_facecolor('none')
     plt.savefig(genre_buf, format='png', bbox_inches='tight')
+    plt.close()
     genre_buf.seek(0)
     genre_plot_url = base64.b64encode(genre_buf.getvalue()).decode('utf-8')
     genre_buf.close()
@@ -133,6 +144,8 @@ def display_analysis():
     time = [format_time(t) for t in time]
     plt.figure(figsize=(14, 10))
     for feature, values in features.items():
+        if feature == "tempo":
+            continue
         plt.plot(time, values, label = feature)
     plt.gcf().autofmt_xdate()
     plt.xlabel('Time (seconds)')
@@ -140,10 +153,29 @@ def display_analysis():
     plt.title('Music Features Over Time')
     plt.legend()
     plt.savefig(feature_buf, format='png', bbox_inches='tight')
+    plt.close()
     feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
     feature_buf.close()
-    
-    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages, filename = session['filename'],nearest_track_info=nearest_track_info)
+
+    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, 
+                           file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages,
+                           filename = session['filename'], nearest_track_info=nearest_track_info, chart_data = chart_data, 
+                           average_genre_features = genre_features, beat_grid = beat_grid)
+
+@app.route('/stream-audio')
+def stream_audio():
+    temp_path = session.get('file_path')
+    if temp_path:
+        @after_this_request
+        def remove_file(response):
+            try:
+                os.remove(temp_path)
+            except Exception as error:
+                app.logger.error("Error removing", error)
+            return response
+        
+        return send_file(temp_path, as_attachment=False)
+    return "No audio file available", 404
 
 def predict(folder_path):
     sigmoid = torch.nn.Sigmoid()
@@ -154,6 +186,7 @@ def predict(folder_path):
 
     for file in files:
         file_path = os.path.join(folder_path,file)
+        session['file_path'] = file_path
         spec, file_id = gen_spectrogram_path(file_path)
         mfcc = gen_mffc_path(file_path)
         beats = get_rhythm_info_path(file_path)
@@ -162,6 +195,7 @@ def predict(folder_path):
         mfcc = mfcc[..., :2580]
         beat_vector = torch.zeros(mfcc.shape[2])
         beat_vector[beats[1]] = 1
+        session['beat_grid'] = beat_vector.to(torch.int).tolist()
         beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
         beat_vector = beat_vector.repeat(2,1,1)
 
@@ -199,7 +233,7 @@ def predict(folder_path):
             "Valence": feature_prediction[6],
             "tempo": beats[0].item()
         }
-
+    
         prediction_data = {
             "file_id": file_id,
             "top_prediction": {
@@ -244,7 +278,11 @@ def format_time(seconds):
     return f"{seconds//60}:{seconds%60:02d}"
 
 def get_nearest_tracks(track_features):
-    track_ids, distances = ann_index.get_nns_by_vector(list(islice(track_features.values(), 6)), 3, include_distances=True)
+    ann_index = AnnoyIndex(6, 'euclidean')
+    ann_index.load('static/data/ANN_tracks_index.ann')
+    track_ids, distances = ann_index.get_nns_by_vector(list(islice(track_features.values(), 6)), 9, include_distances=True)
+    del ann_index
+
     track_info = []
     for idx, track in enumerate(track_ids):
         query = """
@@ -262,7 +300,8 @@ def get_nearest_tracks(track_features):
         WHERE t.track_id = %s;
         """
         cursor.execute(query,(track,))
-        track = list(cursor.fetchone())
+        track = cursor.fetchone()
+        track = list(track)
         track.append(distances[idx])
         track_info.append(track)
     return track_info
