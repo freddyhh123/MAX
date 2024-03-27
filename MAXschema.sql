@@ -6,6 +6,7 @@ CREATE TABLE `tracks` (
   `track_id` varchar(30) PRIMARY KEY,
   `track_name` varchar(255),
   `file_path` varchar(255),
+  `explicit` varchar(255),
   `time_added` timestamp,
   `trained` boolean,
   `batch` varchar(50)

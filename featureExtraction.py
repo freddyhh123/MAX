@@ -167,6 +167,7 @@ def plot_waveform(track_id, waveform, sr,batchId):
     if not os.path.isdir("images/"+batchId+"/wav"):
         os.mkdir("images/"+batchId+"/wav/")
     plt.savefig("images/"+batchId+"/wav/" + track_id + ".png", transparent=True)
+    plt.close()
 
 
 def plot_spectrogram(track_id, specgram):
@@ -183,3 +184,4 @@ def plot_spectrogram(track_id, specgram):
     plt.yticks(color='black')
     plt.gca().set_facecolor('none')
     plt.savefig("static/images/" + str(track_id) + ".png", transparent=True)
+    plt.close()

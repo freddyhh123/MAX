@@ -15,28 +15,13 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler
 import torch.cuda
 # Local libs
-from max_utils import append_or_create, load_ckp
+from maxUtils import append_or_create, load_ckp
 from featureModel import audioFeatureModel, train_model
 import prepareDataset
 from fmaDataset import fmaDataset
 
-# Here we are uisng min-max normalization
-def normalize_tempo(split):
-    tempo = [item[1][-1] for item in split]
-    min_tempo = min(tempo)
-    max_tempo = max(tempo)
-    normalized_data = []
-    for tensor_data, scalar_values in split:
-        normalized_last_value = (scalar_values[-1] - min_tempo) / (max_tempo - min_tempo)
-        normalized_scalar_values = scalar_values[:-1] + (normalized_last_value,)
-        normalized_data.append((tensor_data, normalized_scalar_values))
-    
-    return(normalized_data, min_tempo, max_tempo)
-
-
 def initialize_metrics():
     return {'epoch': [], 'validation_loss':[], 'train_loss':[], 'pearsonr':[], 'r2_score':[]}
-
 
 # This is our collate function, it allows the loader to process the features
 # by making them the right "shape" for the model.
@@ -122,9 +107,6 @@ def main():
                         # Load the dataset and split into loaders
                         dataset = fmaDataset(dataframe=track_dataframe, id=track_dataframe['track_id'], spectrogram=track_dataframe['spectrogram'].values, mfcc=track_dataframe['mfcc'], beats=track_dataframe['beats'], labels=track_dataframe['features'])
                         train_df, test_df = train_test_split(dataset, test_size=0.3, random_state=666)
-                        # Normalize the tempo column of our data
-                        train_df, train_min, train_max = normalize_tempo(train_df)
-                        test_df, val_min, val_max = normalize_tempo(test_df)
 
                         train_loader = DataLoader(train_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=True)
                         test_loader = DataLoader(test_df, batch_size=batch_size, collate_fn=resize_collate, shuffle=False)
