@@ -12,6 +12,7 @@ h1 {
 }
 h2 {
   color: #CA4E79;
+  margin: 0.25rem;
 }
 h3{
   color: #7A4069;
@@ -146,7 +147,7 @@ h3{
   display: flex;
   flex-direction: column;
 }
-.feature_graph {
+.featureGraph {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,21 +162,22 @@ h3{
   margin: 0;
 }
 
-.graph-info {
+.graphInfo {
   min-height: 60px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.track_recomendations {
+.trackRecomendations {
   max-width: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
 }
-.track_recomendations li {
+
+.trackRecomendations li {
   list-style-type: none;
   margin: 0.5rem;
   display: flex;
@@ -184,13 +186,163 @@ h3{
   justify-content: center;
   padding: 0.25rem;
   border-radius: 5px;
-  width: 33%;
   border: solid;
   border-color: purple;
+  text-align: center;
 }
-.track_recomendations ul {
+
+.trackRecomendations ul {
   display: flex;
 }
-.track_recomendations li p {
+
+.trackRecomendations li p {
   margin: 0.2rem;
+}
+
+.midSection {
+  display: flex;
+}
+
+.midSection .trackRecomendations, .midSection .webChart {
+  width: 50%;
+}
+
+.genreSelect {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.featureComparison h2 {
+  text-align: center;
+}
+
+.genreSelect select {
+  width: 130px;
+  margin-left: 0.5rem;
+  text-align: center;
+}
+
+.trackRecomendations ul {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.beatVisualization {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5px, 1fr));
+  gap: 5px;
+  padding-top: 1rem;
+}
+
+.beatDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color:#D3D3D3;
+}
+
+.beatDot.active {
+  background-color: purple; 
+}
+.graphInfo{
+  margin-bottom: 1rem;
+}
+
+.beatGrid, .melSpec {
+  width: 50%;
+  padding: 0.5rem;
+}
+
+.infoSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.audioStream {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.mobileDownload {
+  display: none;
+}
+
+@media only screen and (max-width: 600px) {
+  body{
+    padding: 1rem;
+  }
+  #audio_upload{
+    width: 100%;
+  }
+  .subText{
+    text-align: center;
+  }
+  .main-page{
+    width: 100%;
+  }
+  .predictions{
+    display: block;
+  }
+  .genrePredictions ol{
+    display: flex;
+    align-items: center; 
+    flex-direction: column;
+  }
+  .mobileDownload {
+    display: block;
+    width: 200px;
+    outline: 0;
+    font-size: 20px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(to right, #7A4069, #CA4E79) !important;
+    border-radius: 3px;
+    padding: 1rem;
+    white-space: nowrap;
+    border: solid white 0.5px;
+    transition: background-image 1s;
+    transition: border 1s;
+    text-align: center;
+    text-decoration: none;
+    border-color: black;
+  }
+  .featureGraph{
+    margin-bottom: 2rem;
+  }
+  .graphImage{
+    display: none;
+  }
+  .featurePredictions ol {
+    padding-left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .midSection {
+    flex-direction: column;
+  }
+  .midSection .trackRecomendations, .midSection .webChart {
+    width: 100%;
+  }
+  .trackRecomendations{
+    max-width: 100%;
+  }
+  .trackRecomendations ul {
+    padding: 0;
+  }
+  .infoSection p {
+    text-align: center;
+  }
+  .beatGrid, .melSpec {
+    width: 100%;
+  }
+  .beatGrid{
+    margin-bottom: 2rem;
+  }
+  .resultGraphs{
+    flex-direction: column-reverse;
+  }
 }
