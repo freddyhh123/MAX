@@ -28,7 +28,7 @@ class SubGenreClassifier(nn.Module):
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
         x = self.pool(F.relu(self.bn2(self.conv2(x))))
         x = self.pool2(F.relu(self.bn3(self.conv3(x))))
-        x =x.view(x.shape[0], 92736)
+        x = x.view(x.shape[0], 92736)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))

@@ -1,8 +1,9 @@
-from flask import Flask, request, redirect, url_for, render_template, session, after_this_request
+from flask import Flask, request, redirect, url_for, render_template, session, after_this_request,flash,jsonify
 from werkzeug.utils import secure_filename
 import torch
 from genreModel import topGenreClassifier
 from featureModel import audioFeatureModel
+from subGenreModel import SubGenreClassifier
 import os
 from pydub import AudioSegment
 import io
@@ -26,7 +27,8 @@ import csv
 from werkzeug.utils import secure_filename
 from flask import send_file
 import shutil
-
+from maxUtils import initialize_sub_genre_models, get_top_to_sub_genre_map
+from collections import Counter, defaultdict
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -42,6 +44,20 @@ feature_model = audioFeatureModel()
 feature_model.load_state_dict(torch.load('max_feature_v4.pth'))
 feature_model.eval()
 
+
+sub_genre_models = initialize_sub_genre_models()
+""" sub_genre_path = os.path.join("static","data","models","sub_models")
+for file in os.listdir(sub_genre_path):
+    filename = os.fsdecode(file)
+    if filename.endswith(".pth"):
+        id = int(filename.split('_')[3].split('.')[0])
+        model = sub_genre_models[id]
+        model.load_state_dict(torch.load(os.path.join(sub_genre_path,file)))
+        model.eval()
+        sub_genre_models[id] = model
+    else:
+        continue """
+
 genre_features = []
 with open("genre_averages.csv", 'r') as file:
     reader = csv.reader(file)
@@ -50,6 +66,7 @@ with open("genre_averages.csv", 'r') as file:
 
 app.config['UPLOAD_FOLDER'] = os.path.join(base_path, 'upload')
 app.config['TOP_GENRES'] = all_top_genre_names()
+app.config['GENRE_MAP'] = get_top_to_sub_genre_map()
 app.static_folder = 'static'
 
 db = connect()
@@ -62,15 +79,18 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
-        return 'No file part'
+        flash('No file part', 'error')
+        return jsonify({'status': 'error', 'message': 'No file part'}), 400
 
     file = request.files['file']
 
     if file.filename == '':
-        return 'No selected file'
+        return jsonify({'status': 'error', 'message': 'No selected file'}), 400
 
     if file: 
         folder_path = extract_audio(file)
+        if folder_path == None:
+            return jsonify({'status': 'error', 'message': 'File too short, must be over 30 seconds'}), 400
         predictions = predict(folder_path)
         session['predictions'] = serialize_dict(predictions)
         session['filename'] = secure_filename(file.filename)
@@ -88,30 +108,35 @@ def display_analysis():
     features = {}
     beat_grid = session['beat_grid']
 
+    genre_counts = Counter()
+    genre_probabilities = defaultdict(list)
+    genre_ids = defaultdict(int)
+    sub_genre_counts = Counter()
+    sub_genre_probabilities = defaultdict(list)
+
     for file in prediction_list:
-        for prediction_str in file['top_3_predictions']:
-            prediction_str = re.sub(r"tensor\(([^)]+)\)", r"\1", prediction_str)
-            (genre, _), probability = ast.literal_eval(prediction_str)
-            genre_counts[genre] += 1
-            if genre in genre_probabilities:
-                genre_probabilities[genre].append(probability)
-            else:
-                genre_probabilities[genre] = [probability]
+        for prediction in file['top_3_predictions']:
+            prediction_str = re.sub(r"tensor\(([^)]+)\)", r"\1",prediction)
+            top_genre_entry = file['top_3_predictions'][prediction_str]['top_genre']
+            genre = ast.literal_eval(top_genre_entry[0])
+            probability = top_genre_entry[1]
+            genre_counts[genre[0]] += 1
+            genre_probabilities[genre[0]].append(probability)
+            genre_ids[genre[1]] = genre[0]
+            
+            sub_genres_info = file['top_3_predictions'][prediction_str]['sub_genres']
+            for top3, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
+                sub_genre_counts[top3] += 1
+                sub_genre_probabilities[top3].append(prob)
 
-        for feature, value in file["feature_predictions"].items():
-            if feature in features:
-                features[feature].append(value)
-            else:
-                features[feature] = [value]
+            for feature, value in file["feature_predictions"].items():
+                if feature in features:
+                    features[feature].append(value)
+                else:
+                    features[feature] = [value]
 
-    most_common_genres = [genre for genre, _ in genre_counts.most_common(3)]
-
-    plot_genres = []
-    plot_probabilities = []
-    for genre in most_common_genres:
-        average_probability = sum(genre_probabilities[genre]) / len(genre_probabilities[genre])
-        plot_genres.append(genre)
-        plot_probabilities.append(average_probability)
+    # To get the most common genres and sub-genres along with their average probabilities
+    genre_map = app.config['GENRE_MAP']
 
     feature_averages = average_dict(features)
     chart_data = [feature_averages['Acousticness'], feature_averages['Danceability'], feature_averages['Energy'], feature_averages['Instrumentalness'], feature_averages['Liveness'], feature_averages['Speechiness'], feature_averages['Valence']]
@@ -122,22 +147,29 @@ def display_analysis():
     if len(genre_averages) > 5:
         genre_averages = dict(islice(genre_averages.items(), 5))
 
-    nearest_track_info = get_nearest_tracks(feature_averages)
+    genre_info = {genre: {'probability': prob, 'sub_genres': {}} for genre, prob in genre_averages.items()}
 
-    genre_buf = io.BytesIO()
-    plt.figure(figsize=(10, 6),facecolor='none', edgecolor='none')
-    plt.bar(plot_genres, plot_probabilities, color='purple')
-    plt.xlabel('Genres', color='black')
-    plt.ylabel('Average Probability', color='black')
-    plt.title('Top 3 Most Common Genres and Their Average Probabilities across the track', color='black')
-    plt.xticks(rotation=45,color='black')
-    plt.yticks(color='black')
-    plt.gca().set_facecolor('none')
-    plt.savefig(genre_buf, format='png', bbox_inches='tight')
-    plt.close()
-    genre_buf.seek(0)
-    genre_plot_url = base64.b64encode(genre_buf.getvalue()).decode('utf-8')
-    genre_buf.close()
+    for sub_genre_id, probs in sub_genre_probabilities.items():
+        if sub_genre_id in genre_map:
+            top_genre_id = genre_map[sub_genre_id]
+            if top_genre_id in genre_map:
+                top_genre_name = genre_ids.get(top_genre_id)
+                if top_genre_name in genre_info:
+                    avg_prob = sum(probs) / len(probs) if probs else 0
+                    genre_name = get_genre_name(sub_genre_id)
+                    if 'sub_genres_list' not in genre_info[top_genre_name]:
+                        genre_info[top_genre_name]['sub_genres_list'] = []
+                    genre_info[top_genre_name]['sub_genres_list'].append((genre_name, avg_prob))
+
+    for genre_name, genre_data in genre_info.items():
+        sorted_sub_genres = sorted(genre_data.get('sub_genres_list', []), key=lambda x: x[1], reverse=True)[:3]
+        genre_data['sub_genres'] = {name: prob for name, prob in sorted_sub_genres}
+
+    for genre_data in genre_info.values():
+        if 'sub_genres_list' in genre_data:
+            del genre_data['sub_genres_list']
+
+    nearest_track_info = get_nearest_tracks(feature_averages)
 
     feature_buf = io.BytesIO()
     time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
@@ -157,23 +189,14 @@ def display_analysis():
     feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
     feature_buf.close()
 
-    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, genre_plot_url=genre_plot_url, 
-                           file_id = prediction_list[0]['file_id'], genres = genre_averages, features = feature_averages,
-                           filename = session['filename'], nearest_track_info=nearest_track_info, chart_data = chart_data, 
-                           average_genre_features = genre_features, beat_grid = beat_grid)
+    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, file_id = prediction_list[0]['file_id'], 
+                           genres = genre_info, features = feature_averages,filename = session['filename'], nearest_track_info=nearest_track_info, 
+                           chart_data = chart_data, average_genre_features = genre_features, beat_grid = beat_grid)
 
 @app.route('/stream-audio')
 def stream_audio():
     temp_path = session.get('file_path')
     if temp_path:
-        @after_this_request
-        def remove_file(response):
-            try:
-                os.remove(temp_path)
-            except Exception as error:
-                app.logger.error("Error removing", error)
-            return response
-        
         return send_file(temp_path, as_attachment=False)
     return "No audio file available", 404
 
@@ -199,10 +222,10 @@ def predict(folder_path):
         beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
         beat_vector = beat_vector.repeat(2,1,1)
 
-        combined_features = torch.cat([spec, mfcc, beat_vector], dim=1)
+        combined_features = torch.cat([spec, mfcc, beat_vector], dim=1).unsqueeze(0)
         with torch.no_grad():
-            genre_prediction = genre_model(combined_features.unsqueeze(0))
-            feature_prediction = feature_model(combined_features.unsqueeze(0))
+            genre_prediction = genre_model(combined_features)
+            feature_prediction = feature_model(combined_features)
 
             genre_probabilities = sigmoid(genre_prediction.data)
 
@@ -213,11 +236,35 @@ def predict(folder_path):
             top_values, top_indices = torch.topk(genre_probabilities, k=1, dim=1)
             top_prediction = top_indices.cpu().numpy()
             top_probability = top_values.cpu().numpy()
-        
-        top3_genres = list()
+            
+            sub_genre_results = {}
+            for genre in top3_indices.tolist()[0]:
+                sub_genre_info = {}
+                sub_genre_model = sub_genre_models[genre]
+                sub_genre_prediction = sub_genre_model(combined_features)
+                sub_genre_probabilities = sigmoid(sub_genre_prediction.data)
+                if not torch.isnan(sub_genre_probabilities).all():
+                    if len(sub_genre_probabilities[0]) < 3:
+                        k = len(sub_genre_probabilities[0])
+                    else:
+                        k = 3
+                    top3_sub_genre_values, top3_sub_genre_indices = torch.topk(sub_genre_probabilities, k=k, dim=1)
+                    sub_genre_info['top3_probabilities'] = top3_sub_genre_values.cpu().numpy()
+                    sub_genre_info['top3_genres'] = top3_sub_genre_indices.cpu().numpy()
+                    sub_genre_results[genre] = sub_genre_info
+
+        top3_genres = {}
         top_genres = app.config['TOP_GENRES']
         for idx, genre_prediction in enumerate(top3_predictions[0]):
-            top3_genres.append((top_genres[genre_prediction], top3_values[0][idx]*100))
+            if idx not in top3_genres:
+                top3_genres[idx] = {}
+            top3_genres[idx]['top_genre'] = [top_genres[genre_prediction], int(top3_values[0][idx]*100)]
+            if genre_prediction in sub_genre_results:
+                sub_genre_ids = []
+                for index in sub_genre_results[genre_prediction]['top3_genres'].tolist()[0]:
+                    sub_genre_ids.append(get_sub_genre_id(top_genres[genre_prediction], index))
+                sub_genre_results[genre_prediction]['top3_genres'] = sub_genre_ids
+                top3_genres[idx]['sub_genres'] = sub_genre_results[genre_prediction]
 
         top_prediction = top_genres[top_prediction[0][0]]
 
@@ -250,6 +297,8 @@ def predict(folder_path):
 def extract_audio(file):
     split_size = 30000
     audio = AudioSegment.from_file(file)
+    if len(audio) < 31000:
+        return None
     base_name = file.filename
     output_folder = os.path.join(os.getcwd(),"upload", os.path.splitext(base_name)[0])
     if not os.path.exists(output_folder):
@@ -299,6 +348,7 @@ def get_nearest_tracks(track_features):
         JOIN artists ar ON art.artist_id = ar.artist_id
         WHERE t.track_id = %s;
         """
+        # TODO something weird here with tracks
         cursor.execute(query,(track,))
         track = cursor.fetchone()
         track = list(track)
@@ -313,6 +363,27 @@ def average_dict(dict):
             average_value = sum(values) / len(values)
             averages[item] = round(average_value,2)
     return averages
+
+def get_sub_genre_id(top_genre_id, sub_genre_idx):
+    top_genre_id = top_genre_id[1]
+    query = """
+    SELECT genre_id FROM genres
+    WHERE top_genre = %s
+    ORDER BY genre_id;
+    """
+    values = (int(top_genre_id),)
+    cursor.execute(query, values)
+    sub_genre_ids = [row[0] for row in cursor.fetchall()]
+    return sub_genre_ids[sub_genre_idx]
+
+def get_genre_name(genre_id):
+    query = """
+    SELECT genre_name FROM genres
+    WHERE genre_id = %s
+    """
+    values = (int(genre_id),)
+    cursor.execute(query, values)
+    return cursor.fetchone()[0]
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
