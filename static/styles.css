@@ -88,6 +88,7 @@ h3{
   align-items: center;
   color: black;
   justify-content: center;
+  flex-direction: column;
 }
 .predictions h2{
   font-size: 22px;
@@ -269,9 +270,31 @@ h3{
   display: none;
 }
 
+.topGenres {
+  list-style: none;
+  display: flex;
+}
+.topGenreList {
+  border-right: purple solid 3px;
+  padding-right: 1rem;
+}
+.last-top-genre {
+  border-right: none;
+}
+.featurePredictions {
+  margin-bottom: 2rem;
+  margin-top: 2rem;
+}
 @media only screen and (max-width: 600px) {
   body{
     padding: 1rem;
+  }
+  h1{
+    text-align: center;
+  }
+  h3{
+    word-wrap: anywhere;
+    text-align: center;
   }
   #audio_upload{
     width: 100%;
