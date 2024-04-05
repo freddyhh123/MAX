@@ -169,19 +169,19 @@ def plot_waveform(track_id, waveform, sr,batchId):
     plt.savefig("images/"+batchId+"/wav/" + track_id + ".png", transparent=True)
     plt.close()
 
-
 def plot_spectrogram(track_id, specgram):
     if not isinstance(specgram, np.ndarray):
         specgram = np.array(specgram)
     combined_specgram = np.mean(specgram, axis=0)
-    plt.figure(figsize=(10, 6), facecolor='none', edgecolor='none')
-    librosa.display.specshow(librosa.power_to_db(combined_specgram, ref=np.max),
-                             y_axis='mel', fmax=8000, x_axis='time', sr=44100)
+    plt.figure(figsize=(10, 6))
+    img = librosa.display.specshow(librosa.power_to_db(combined_specgram, ref=np.max),
+                                   y_axis='mel', fmax=8000, x_axis='time', sr=44100)
     plt.tight_layout()
-    plt.xlabel("Time",color='black')
-    plt.ylabel("Hz", color='black')
+    plt.xlabel("Time (Min:sec)", color='black')
+    plt.ylabel("Frequency (Hz)", color='black')
     plt.xticks(color='black')
     plt.yticks(color='black')
     plt.gca().set_facecolor('none')
+    plt.colorbar(img, format='%+2.0f dB', label='Intensity (dB)')
     plt.savefig("static/images/" + str(track_id) + ".png", transparent=True)
     plt.close()
