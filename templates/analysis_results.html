@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,19 +16,26 @@
         </div>
         <div class="audioStream">
             <audio controls>
-                <source src="{{ url_for('stream_audio') }}" type="audio/mp3">
+                <source aria-label="Play audio" src="{{ url_for('stream_audio') }}" type="audio/mp3">
                 Your browser does not support the audio element.
             </audio>
         </div>        
         <div class="predictions">
             <div class="genrePredictions">
                 <h3>Genre Predictions:</h3>
-                <ol>
-                    {% for genre, (probability) in genres.items() %}
-                        <li>{{ genre }}, Confidence: {{ probability }}%</li>
+                <ol class="topGenres">
+                    {% for genre, details in genres.items() %}
+                        <li class="topGenreList{{ 'last-top-genre' if loop.last }}">
+                            <p class="topGenre">{{ genre }}, Confidence: {{ details.probability }}%</p>
+                            <ul class="subGenres">
+                                {% for sub_genre, sub_prob in details.sub_genres.items() %}
+                                    <li>{{ sub_genre }}: {{ sub_prob|round(2) }}%</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
                     {% endfor %}
-                </ol>            
-            </div>
+                </ol>         
+            </div>            
             <div class="featurePredictions">
                 <h3>Feature Predictions:</h3>
                 <ol>
@@ -40,7 +47,7 @@
         </div>
         <div class="featureGraph">
             <img class="graphImage" src="data:image/png;base64,{{ feature_plot_url }}" alt="Audio features over time">
-            <a class="mobileDownload" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABIQAAAMLCAYAAAA/k0y1..." download="Features-Graph.png">Download Graph</a>
+            <a aria-label="Download graph image" class="mobileDownload" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABIQAAAMLCAYAAAA/k0y1..." download="Features-Graph.png">Download Graph</a>
         </div>
         <div class="midSection">
             <div class="trackRecomendations">
@@ -65,7 +72,7 @@
                     <h2>Feature Comparison Chart</h2>
                     <div class="genreSelect">
                         <label for="genreSelector">Select Genre:</label>
-                        <select id="genreSelector">
+                        <select aria-label="Selector for genres" id="genreSelector">
                         </select>
                     </div>
                     <canvas id="featureChart" width="400" height="400"></canvas>
