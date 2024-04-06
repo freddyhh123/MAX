@@ -109,9 +109,9 @@ def gen_spectrogram_path(file_path):
 
     transform = T.MelSpectrogram(sample_rate,n_mels = 128, n_fft = 2048,hop_length = 512)
     spec = transform(wav)
-    plot_spectrogram(file_id, spec)
+    spec_plot = spec
     spec_noramlised = torch.log(spec + 1e-6)
-    return spec_noramlised, str(file_id)
+    return spec_plot, spec_noramlised, str(file_id)
 
 def gen_mffc_path(file_path):
     if os.name == 'posix':

@@ -26,7 +26,7 @@
                 <ol class="topGenres">
                     {% for genre, details in genres.items() %}
                         <li class="topGenreList{{ 'last-top-genre' if loop.last }}">
-                            <p class="topGenre">{{ genre }}, Confidence: {{ details.probability }}%</p>
+                            <p class="topGenre">{{ genre }}: {{ details.probability }}%</p>
                             <ul class="subGenres">
                                 {% for sub_genre, sub_prob in details.sub_genres.items() %}
                                     <li>{{ sub_genre }}: {{ sub_prob|round(2) }}%</li>
@@ -46,8 +46,8 @@
             </div>
         </div>
         <div class="featureGraph">
-            <img class="graphImage" src="data:image/png;base64,{{ feature_plot_url }}" alt="Audio features over time">
-            <a aria-label="Download graph image" class="mobileDownload" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABIQAAAMLCAYAAAA/k0y1..." download="Features-Graph.png">Download Graph</a>
+            <img class="graphImage" src="{{ url_for('static', filename='images/' + file_id + '-features' + '.png') }}" alt="Audio features over time">
+            <a aria-label="Download graph image" class="mobileDownload" href="{{ url_for('static', filename='images/' + file_id + '-features' + '.png') }}" download="Features-Graph.png">Download Graph</a>
         </div>
         <div class="midSection">
             <div class="trackRecomendations">
@@ -57,11 +57,14 @@
                     {% for track in nearest_track_info %}
                                 <li>
                                     <p>{{ track[0] }}</p> 
-                                    {% if track[2] %} <p>Artist: </p> <a href="{{ track[2] }}">{{ track[1]| replace('_', ' ') }}</a>
-                                    {% else %} <p>Artist: {{ track[1] }}</p>
+                                    {% if track[3] %} <p>Artist: </p> <a href="{{ track[2] }}">{{ track[2]| replace('_', ' ') }}</a>
+                                    {% else %} <p>Artist: {{ track[2] }}</p>
                                     {% endif %}
-                                    {% if track[4] %} <p>Album: </p> <a href="{{ track[4] }}">{{ track[3] }}</a> 
-                                    {% else %} <p>Album: {{ track[3] }}</p>
+                                    {% if track[5] %} <p>Album: </p> <a href="{{ track[5] }}">{{ track[4] }}</a> 
+                                    {% else %} <p>Album: {{ track[4] }}</p>
+                                    {% endif %}
+                                    {% if track[1] != 'nan' %}
+                                    {{ track[1] }}
                                     {% endif %}
                                 </li>
                     {% endfor %}
@@ -90,8 +93,9 @@
                     <p>This is how rhythm is incorporated into the models, each dot is a frame and the purple dots are an estimated beat. This is only a very small section of the track.</p>
                 </div>
                 <div class="beatVisualization">
-                    {% for beat in beat_grid %}
-                        <div class="beatDot {% if beat == 1 %}active{% endif %}"></div>
+                    {% set total_frames = 2580 %}
+                    {% for i in range(total_frames) %}
+                        <div class="beatDot {% if i in beat_grid %}active{% endif %}"></div>
                     {% endfor %}
                 </div>
             </div>

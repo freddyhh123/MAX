@@ -10,6 +10,7 @@ import io
 from featureExtraction import gen_spectrogram_path
 from featureExtraction import gen_mffc_path
 from featureExtraction import get_rhythm_info_path
+from featureExtraction import plot_spectrogram
 from prepareDataset import all_top_genre_names
 import numpy as np
 import re
@@ -28,7 +29,7 @@ from werkzeug.utils import secure_filename
 from flask import send_file
 import shutil
 from maxUtils import initialize_sub_genre_models, get_top_to_sub_genre_map
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, OrderedDict
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -91,106 +92,28 @@ def upload():
         folder_path = extract_audio(file)
         if folder_path == None:
             return jsonify({'status': 'error', 'message': 'File too short, must be over 30 seconds'}), 400
-        predictions = predict(folder_path)
-        session['predictions'] = serialize_dict(predictions)
+        predict(folder_path)
         session['filename'] = secure_filename(file.filename)
-
         return redirect(url_for('display_analysis'))
     
 @app.route('/results')
 def display_analysis():
-    prediction_list = session.get('predictions', [])
-    if not prediction_list:
+    genre_info = session.get('genres', [])
+    if not genre_info:
         return redirect(url_for('index'))
-
-    genre_probabilities = {}
-    genre_counts = Counter()
-    features = {}
+    
+    genre_info = OrderedDict(sorted(genre_info.items(), key=lambda x: (-x[1]['probability'], x[0])))
+    
+    feature_averages = session['features']
+    file_id = session['fileId']
     beat_grid = session['beat_grid']
 
-    genre_counts = Counter()
-    genre_probabilities = defaultdict(list)
-    genre_ids = defaultdict(int)
-    sub_genre_counts = Counter()
-    sub_genre_probabilities = defaultdict(list)
-
-    for file in prediction_list:
-        for prediction in file['top_3_predictions']:
-            prediction_str = re.sub(r"tensor\(([^)]+)\)", r"\1",prediction)
-            top_genre_entry = file['top_3_predictions'][prediction_str]['top_genre']
-            genre = ast.literal_eval(top_genre_entry[0])
-            probability = top_genre_entry[1]
-            genre_counts[genre[0]] += 1
-            genre_probabilities[genre[0]].append(probability)
-            genre_ids[genre[1]] = genre[0]
-            
-            sub_genres_info = file['top_3_predictions'][prediction_str]['sub_genres']
-            for top3, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
-                sub_genre_counts[top3] += 1
-                sub_genre_probabilities[top3].append(prob)
-
-            for feature, value in file["feature_predictions"].items():
-                if feature in features:
-                    features[feature].append(value)
-                else:
-                    features[feature] = [value]
-
-    # To get the most common genres and sub-genres along with their average probabilities
-    genre_map = app.config['GENRE_MAP']
-
-    feature_averages = average_dict(features)
     chart_data = [feature_averages['Acousticness'], feature_averages['Danceability'], feature_averages['Energy'], feature_averages['Instrumentalness'], feature_averages['Liveness'], feature_averages['Speechiness'], feature_averages['Valence']]
-    genre_averages = average_dict(genre_probabilities)
-
-    genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
-
-    if len(genre_averages) > 5:
-        genre_averages = dict(islice(genre_averages.items(), 5))
-
-    genre_info = {genre: {'probability': prob, 'sub_genres': {}} for genre, prob in genre_averages.items()}
-
-    for sub_genre_id, probs in sub_genre_probabilities.items():
-        if sub_genre_id in genre_map:
-            top_genre_id = genre_map[sub_genre_id]
-            if top_genre_id in genre_map:
-                top_genre_name = genre_ids.get(top_genre_id)
-                if top_genre_name in genre_info:
-                    avg_prob = sum(probs) / len(probs) if probs else 0
-                    genre_name = get_genre_name(sub_genre_id)
-                    if 'sub_genres_list' not in genre_info[top_genre_name]:
-                        genre_info[top_genre_name]['sub_genres_list'] = []
-                    genre_info[top_genre_name]['sub_genres_list'].append((genre_name, avg_prob))
-
-    for genre_name, genre_data in genre_info.items():
-        sorted_sub_genres = sorted(genre_data.get('sub_genres_list', []), key=lambda x: x[1], reverse=True)[:3]
-        genre_data['sub_genres'] = {name: prob for name, prob in sorted_sub_genres}
-
-    for genre_data in genre_info.values():
-        if 'sub_genres_list' in genre_data:
-            del genre_data['sub_genres_list']
 
     nearest_track_info = get_nearest_tracks(feature_averages)
 
-    feature_buf = io.BytesIO()
-    time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
-    time = [format_time(t) for t in time]
-    plt.figure(figsize=(14, 10))
-    for feature, values in features.items():
-        if feature == "tempo":
-            continue
-        plt.plot(time, values, label = feature)
-    plt.gcf().autofmt_xdate()
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Feature Value')
-    plt.title('Music Features Over Time')
-    plt.legend()
-    plt.savefig(feature_buf, format='png', bbox_inches='tight')
-    plt.close()
-    feature_plot_url = base64.b64encode(feature_buf.getvalue()).decode('utf-8')
-    feature_buf.close()
-
-    return render_template('analysis_results.html',feature_plot_url = feature_plot_url, file_id = prediction_list[0]['file_id'], 
-                           genres = genre_info, features = feature_averages,filename = session['filename'], nearest_track_info=nearest_track_info, 
+    return render_template('analysis_results.html', file_id = file_id, 
+                           genres = genre_info, features = feature_averages,filename = session['filename'], nearest_track_info = nearest_track_info, 
                            chart_data = chart_data, average_genre_features = genre_features, beat_grid = beat_grid)
 
 @app.route('/stream-audio')
@@ -201,24 +124,28 @@ def stream_audio():
     return "No audio file available", 404
 
 def predict(folder_path):
+    clear_session()
     sigmoid = torch.nn.Sigmoid()
 
     files = [f for f in os.listdir(folder_path) if f.endswith('.mp3')]
 
     full_prediction_data = []
 
-    for file in files:
+    for idx, file in enumerate(files):
         file_path = os.path.join(folder_path,file)
         session['file_path'] = file_path
-        spec, file_id = gen_spectrogram_path(file_path)
+        spec_plot, spec, file_id = gen_spectrogram_path(file_path)    
         mfcc = gen_mffc_path(file_path)
-        beats = get_rhythm_info_path(file_path)
+        beats = get_rhythm_info_path(file_path)  
+        if idx == 0:
+            plot_spectrogram(file_id, spec_plot)
 
         spec = spec[..., :2580]
         mfcc = mfcc[..., :2580]
         beat_vector = torch.zeros(mfcc.shape[2])
         beat_vector[beats[1]] = 1
-        session['beat_grid'] = beat_vector.to(torch.int).tolist()
+        beat_grid = [i for i, value in enumerate(beat_vector.to(torch.int).tolist()) if value == 1]
+        session['beat_grid'] = beat_grid
         beat_vector = beat_vector.unsqueeze(0).unsqueeze(0)
         beat_vector = beat_vector.repeat(2,1,1)
 
@@ -292,6 +219,8 @@ def predict(folder_path):
         }
         full_prediction_data.append(prediction_data)
 
+    combine_predictions(full_prediction_data)
+
     return full_prediction_data
 
 def extract_audio(file):
@@ -336,7 +265,8 @@ def get_nearest_tracks(track_features):
     for idx, track in enumerate(track_ids):
         query = """
         SELECT 
-            t.track_name, 
+            t.track_name,
+            t.explicit,
             ar.artist_name, 
             ar.artist_url AS artist_link,
             alb.album_name,  
@@ -384,6 +314,101 @@ def get_genre_name(genre_id):
     values = (int(genre_id),)
     cursor.execute(query, values)
     return cursor.fetchone()[0]
+
+def combine_predictions(prediction_list):
+    features = {}
+    genre_probabilities = {}
+    genre_counts = Counter()
+    genre_counts = Counter()
+    genre_probabilities = defaultdict(list)
+    genre_ids = defaultdict(int)
+    sub_genre_counts = Counter()
+    sub_genre_probabilities = defaultdict(list)
+    for file in prediction_list:
+        for prediction in file['top_3_predictions']:
+            top_genre_entry = file['top_3_predictions'][prediction]['top_genre']
+            genre = top_genre_entry[0]
+            probability = top_genre_entry[1]
+            genre_counts[genre[0]] += 1
+            genre_probabilities[genre[0]].append(probability)
+            genre_ids[genre[1]] = genre[0]
+            
+            sub_genres_info = file['top_3_predictions'][prediction]['sub_genres']
+            for top3, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
+                sub_genre_counts[top3] += 1
+                sub_genre_probabilities[top3].append(prob)
+
+        for feature, value in file["feature_predictions"].items():
+            if feature in features:
+                features[feature].append(value)
+            else:
+                features[feature] = [value]
+
+    # To get the most common genres and sub-genres along with their average probabilities
+    genre_map = app.config['GENRE_MAP']
+
+    feature_averages = average_dict(features)
+    genre_averages = average_dict(genre_probabilities)
+
+    genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
+
+    if len(genre_averages) > 5:
+        genre_averages = dict(islice(genre_averages.items(), 5))
+
+    genre_info = {genre: {'probability': prob, 'sub_genres': {}} for genre, prob in genre_averages.items()}
+
+    for sub_genre_id, probs in sub_genre_probabilities.items():
+        if sub_genre_id in genre_map:
+            top_genre_id = genre_map[sub_genre_id]
+            if top_genre_id in genre_map:
+                top_genre_name = genre_ids.get(top_genre_id)
+                if top_genre_name in genre_info:
+                    avg_prob = sum(probs) / len(probs) if probs else 0
+                    genre_name = get_genre_name(sub_genre_id)
+                    if 'sub_genres_list' not in genre_info[top_genre_name]:
+                        genre_info[top_genre_name]['sub_genres_list'] = []
+                    genre_info[top_genre_name]['sub_genres_list'].append((genre_name, avg_prob))
+
+    for genre_name, genre_data in genre_info.items():
+        sorted_sub_genres = sorted(genre_data.get('sub_genres_list', []), key=lambda x: x[1], reverse=True)[:3]
+        genre_data['sub_genres'] = {name: prob for name, prob in sorted_sub_genres}
+
+    for genre_data in genre_info.values():
+        if 'sub_genres_list' in genre_data:
+            del genre_data['sub_genres_list']
+
+    time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
+    time = [format_time(t) for t in time]
+    plt.figure(figsize=(14, 10))
+    for feature, values in features.items():
+        if feature == "tempo":
+            continue
+        plt.plot(time, values, label = feature)
+    plt.gcf().autofmt_xdate()
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Feature Value')
+    plt.title('Music Features Over Time')
+    plt.legend()
+    plt.savefig("static/images/" + str(prediction_list[0]['file_id']) + "-features" ".png", format='png', bbox_inches='tight')
+    plt.close()
+
+    session['genres'] = genre_info
+    session['features'] = feature_averages
+    session['fileId'] = prediction_list[0]['file_id']
+
+def clear_session():
+    if 'beat_grid' in session:
+        del session['beat_grid']
+    if 'genres' in session:
+        del session['genres']
+    if 'features' in session:
+        del session['features']
+    if 'fileId' in session:
+        del session['fileId']
+    if 'filename' in session:
+        del session['filename']
+    if 'file_path' in session:
+        del session['file_path']
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')

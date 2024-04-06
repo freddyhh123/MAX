@@ -285,6 +285,9 @@ h3{
   margin-bottom: 2rem;
   margin-top: 2rem;
 }
+.topGenre {
+  text-align: center;
+}
 @media only screen and (max-width: 600px) {
   body{
     padding: 1rem;
