@@ -176,7 +176,7 @@ def get_tracks(dataset_type, tracks_chunk, number):
         track_genres_df = pd.read_sql(track_genre_query, db)
         # Converting low level genres to their relevant top level genres
         genre_to_top_genre = {row['genre_id']: row['top_genre'] for index, row in genre_relationships_df.iterrows()}
-        tracks[['top_genres', 'sub_genres']] = tracks['track_id'].apply(lambda x: get_genres(x, track_genres_df, genre_to_top_genre)).apply(pd.Series)
+        tracks[['top_genres', 'sub_genres']] = tracks['track_id'].apply(lambda x: get_genres(track_genres_df, genre_to_top_genre)).apply(pd.Series)
         # Converting this to one hot encoding
         tracks[['genre_vector', 'sub_genre_vectors']] = tracks.apply(lambda row: genres_to_binary(row, all_top_genres), axis=1)
 

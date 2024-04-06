@@ -109,7 +109,7 @@ def addTracks():
                 # Note, using get_audio_path from the FMA dataset utils code!
                 if test_audio(int(track[0])) == False:
                     continue
-                values = (track[0], track[1]["track_title"], utils.get_audio_path("data",int(track[0])),"0", timestamp, False, batchId)
+                values = (track[0], track[1]["track_title"], utils.get_audio_path("data",int(track[0])), str(track[1]['track_explicit']), timestamp, False, batchId)
                 cursor.execute(sql, values)
                 print("Added " + str(track[1]["track_title"]) + " to track table")
 
