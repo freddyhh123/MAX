@@ -23,6 +23,15 @@ class audioFeatureModel(nn.Module):
         self.fc_layers = nn.ModuleList([nn.Linear(64 * 17 * 322, 1) for _ in range(num_features)])
 
     def forward(self, x):
+        """
+        Model forward pass.
+
+        Parameters:
+        - x (torch.Tensor): The input data.
+
+        Returns:
+        - torch.Tensor: The concatenated outputs from each fully connected layer.
+        """
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
         x = self.pool(F.relu(self.bn2(self.conv2(x))))
         x = self.pool(F.relu(self.bn3(self.conv3(x))))
@@ -32,6 +41,13 @@ class audioFeatureModel(nn.Module):
         return torch.cat(outputs, dim=1)
     
 def save_ckp(state, is_best):
+    """
+    Saves the model checkpoint and optionally a copy as the best model. This isfrom Pytorch docs
+
+    Parameters:
+    - state (dict): Dictionary containing model's state dict and optimizer's state dict.
+    - is_best (bool): If True, saves a copy as the best performing model.
+    """
     f_path = 'max_feature_checkpoint.pt'
     torch.save(state, f_path)
     if is_best:
@@ -40,6 +56,22 @@ def save_ckp(state, is_best):
 
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, scaler, epoch, device):
+    """
+    Trains and validates a model, saving checkpoints and returning training/validation results.
+
+    Parameters:
+    - model (nn.Module): The neural network model to be trained.
+    - train_loader (DataLoader): DataLoader for training data.
+    - valid_loader (DataLoader): DataLoader for validation data.
+    - criterion (Loss Function): The loss function to use for optimization.
+    - optimizer (Optimizer): The optimizer to use for optimization.
+    - scaler (GradScaler): Scaler for automatic mixed precision.
+    - epoch (int): Current epoch count.
+    - device (torch.device): Device to run the model computation on.
+
+    Returns:
+    - tuple: A tuple containing dictionaries with training and validation loss and accuracy metrics.
+    """
     overall_train_loss = list()
     overall_val_loss = list()
     val_predictions = list()

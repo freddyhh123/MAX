@@ -20,6 +20,15 @@ db = connect()
 cursor = cursor = db.cursor()
 
 def get_file(track_id):
+    """
+    Retrieves the file path for a given track ID from the database.
+
+    Parameters:
+    - track_id (int): The ID of the track to retrieve.
+
+    Returns:
+    - str: The file path of the track, formatted for the current operating system.
+    """
     query = "SELECT * FROM tracks WHERE track_id = %s"
     values = (track_id,)
     cursor.execute(query, values)
@@ -33,6 +42,15 @@ def get_file(track_id):
 
 
 def get_rhythm_info(track_id):
+    """
+    Extracts tempo and beat information from an audio file specified by its track ID.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - tuple: A tuple containing tempo as a tensor and beats as a tensor.
+    """
     track_path = get_file(track_id)
 
     wav, sample_rate = torchaudio.load(track_path, normalize = True)
@@ -55,6 +73,15 @@ def get_rhythm_info(track_id):
     
 
 def gen_spectrogram(track_id):
+    """
+    Generates a Mel spectrogram from an audio file specified by its track ID.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - torch.Tensor: The Mel spectrogram tensor.
+    """
     track_path = get_file(track_id)
 
     wav, sample_rate = torchaudio.load(track_path, normalize = True)
@@ -72,6 +99,15 @@ def gen_spectrogram(track_id):
     return spec
 
 def gen_mfcc(track_id):
+    """
+    Generates MFCCs (Mel Frequency Cepstral Coefficients) from an audio file specified by its track ID.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - torch.Tensor: The MFCC tensor.
+    """
     query = "SELECT * FROM tracks WHERE track_id = %s"
     values = (track_id,)
     cursor.execute(query, values)
@@ -96,6 +132,15 @@ def gen_mfcc(track_id):
     return mfccs
 
 def gen_spectrogram_path(file_path):
+    """
+    Generates a Mel spectrogram from an audio file specified by its path.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - torch.Tensor: The Mel spectrogram tensor.
+    """
     file_id = uuid.uuid4()
     if os.name == 'posix':
         file_path = file_path.replace("\\", "/")
@@ -114,6 +159,15 @@ def gen_spectrogram_path(file_path):
     return spec_plot, spec_noramlised, str(file_id)
 
 def gen_mffc_path(file_path):
+    """
+    Generates MFCCs (Mel Frequency Cepstral Coefficients) from an audio file specified by its path.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - torch.Tensor: The MFCC tensor.
+    """
     if os.name == 'posix':
         file_path = file_path.replace("\\", "/")
     wav, sample_rate = torchaudio.load(file_path, normalize = True)
@@ -129,7 +183,15 @@ def gen_mffc_path(file_path):
     return mfccs
 
 def get_rhythm_info_path(file_path):
+    """
+    Extracts tempo and beat information from an audio file specified by its path.
 
+    Parameters:
+    - track_id (int): The ID of the track.
+
+    Returns:
+    - tuple: A tuple containing tempo as a tensor and beats as a tensor.
+    """
     file_id = uuid.uuid4()
     if os.name == 'posix':
         file_path = file_path.replace("\\", "/")
@@ -153,6 +215,18 @@ def get_rhythm_info_path(file_path):
 
 
 def plot_waveform(track_id, waveform, sr,batchId):
+    """
+    Plots and saves the waveform of an audio track. (not used)
+
+    Parameters:
+    - track_id (int): The ID of the track.
+    - waveform (torch.Tensor): The waveform tensor.
+    - sr (int): Sample rate of the waveform.
+    - batchId (str): Identifier for the batch, used to organize saved plots.
+
+    Returns:
+    - None: The plot is saved to a file and not returned.
+    """
     waveform = waveform.numpy()
 
     num_channels, num_frames = waveform.shape
@@ -170,6 +244,16 @@ def plot_waveform(track_id, waveform, sr,batchId):
     plt.close()
 
 def plot_spectrogram(track_id, specgram):
+    """
+    Plots and saves Mel spectrogram of an audio track.
+
+    Parameters:
+    - track_id (int): The ID of the track.
+    - waveform (torch.Tensor): The Spectrogram tensor.
+
+    Returns:
+    - None: The plot is saved to a file and not returned.
+    """
     if not isinstance(specgram, np.ndarray):
         specgram = np.array(specgram)
     combined_specgram = np.mean(specgram, axis=0)

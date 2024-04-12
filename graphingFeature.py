@@ -6,6 +6,16 @@ import numpy as np
 from maxUtils import extract_parameters_from_filename
 
 def plot_metrics(folder_path):
+    """
+    Reads performance metrics from CSV files, aggregates the data, and plots heatmaps. For feature analysis.
+
+    Parameters:
+    - folder_path (str): The path to the directory containing the CSV files with model metrics.
+
+    Outputs:
+    - Prints the best parameter combinations for different metrics.
+    - Displays heatmaps showing the relationship between batch size, learning rate, and given metrics.
+    """
     # These are the metrics for we are using for the feature model
     metrics = ['pearsonr', 'r2_score']
     data = []

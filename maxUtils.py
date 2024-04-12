@@ -8,16 +8,35 @@ import json
 import torchaudio
 from subGenreModel import SubGenreClassifier
 
-# Loads a checkpoint for training
 def load_ckp(checkpoint_fpath, model, optimizer):
+    """
+    Load a model checkpoint. This is from pytorch docs.
+
+    Parameters:
+    checkpoint_fpath (str): Path to the checkpoint file.
+    model (torch.nn.Module): The model that needs to be loaded.
+    optimizer (torch.optim.Optimizer): The optimizer that needs to be loaded.
+
+    Returns:
+    tuple: Returns the updated model and optimizer loaded with checkpoint data.
+    """
     checkpoint = torch.load(checkpoint_fpath)
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
     return model, optimizer
 
 
-# This checks whether a file exists then writes appends to it.
 def append_or_create(results_dataframe, file_path):
+    """
+    Append a dataframe to an existing CSV file or create a new CSV file if it doesn't exist.
+
+    Parameters:
+    results_dataframe (pd.DataFrame): Dataframe containing the results to append.
+    file_path (str): Path to the CSV file.
+
+    Returns:
+    None
+    """
     if os.path.exists(file_path):
         existing_dataframe = pd.read_csv(file_path)
         updated_dataframe = pd.concat([existing_dataframe, results_dataframe], ignore_index=True)
@@ -28,6 +47,12 @@ def append_or_create(results_dataframe, file_path):
 
 
 def update_averages():
+    """
+    Update genre averages
+
+    Returns:
+    None
+    """
     db = connect()
     cursor = db.cursor(dictionary=True)
     query = """
@@ -64,6 +89,12 @@ def update_averages():
 
 
 def update_ann():
+    """
+    Build and save an ANN for nearest track.
+
+    Returns:
+    None
+    """
     db = connect()
     cursor = db.cursor()
     cursor.execute("SELECT * FROM features")
@@ -78,6 +109,12 @@ def update_ann():
     ann_index.save('ANN_tracks_index.ann')
 
 def check_bad_files():
+    """
+    Check for corrupted MP3 files in a specified directory and log.
+
+    Returns:
+    None
+    """
     directory = 'data'
     bad_files = []
     fields = ['folder', 'file', 'error'] 
@@ -98,14 +135,28 @@ def check_bad_files():
         write.writerow(fields)
         write.writerows(bad_files)
 
-# This gets the epoch_size, batch_size and the learning_rate from the filename
 def extract_parameters_from_filename(filename):
+    """
+    Extracts parameters from a given filename based on expected format.
+
+    Parameters:
+    - filename (str): Filename containing epoch size, batch size, and learning rate.
+
+    Returns:
+    - tuple: Contains extracted epoch size, batch size, and learning rate.
+    """
     parts = filename.split('_')
     params = parts[0].split('-')
     epoch_size, batch_size, learning_rate = params[:3]
     return epoch_size, batch_size, learning_rate
 
 def initialize_sub_genre_models():
+    """
+    Initialized sub genre models with correct output sizes.
+
+    Returns:
+    - List: Contains models.
+    """
     # info for generating sub-genre models, left side is genre_id
     # right side is the number of sub_genres or outputs
     sub_genre_models = {}
@@ -116,6 +167,12 @@ def initialize_sub_genre_models():
     return sub_genre_models
 
 def get_top_to_sub_genre_map():
+    """
+    Gets map of sub-genres to top genres.
+
+    Returns:
+    - List: Contains map.
+    """
     db = connect()
     genre_relationship_query = "SELECT genre_id, top_genre FROM genres"
     genre_relationships_df = pd.read_sql(genre_relationship_query, db)

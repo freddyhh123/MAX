@@ -75,10 +75,19 @@ cursor = db.cursor()
 
 @app.route('/')
 def index():
+    """ Serve the main index page. """
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    """
+    Handle file uploads through POST requests.
+
+    Processes the uploaded file, extracts features, and predicts genre using the trained models.
+
+    Returns:
+    JSON response with status and redirect on success.
+    """
     if 'file' not in request.files:
         flash('No file part', 'error')
         return jsonify({'status': 'error', 'message': 'No file part'}), 400
@@ -98,6 +107,11 @@ def upload():
     
 @app.route('/results')
 def display_analysis():
+    """
+    Display the results of the audio analysis.
+
+    Fetches and sorts data from the session, then renders the results on a web page.
+    """
     genre_info = session.get('genres', [])
     if not genre_info:
         return redirect(url_for('index'))
@@ -118,12 +132,27 @@ def display_analysis():
 
 @app.route('/stream-audio')
 def stream_audio():
+    """
+    Stream the uploaded audio file.
+
+    Returns:
+    - Audio file or error message.
+    """
     temp_path = session.get('file_path')
     if temp_path:
         return send_file(temp_path, as_attachment=False)
     return "No audio file available", 404
 
 def predict(folder_path):
+    """
+    Predict the genre and sub-genre of the uploaded audio files.
+
+    Parameters:
+    - folder_path (str): Path where the uploaded audio files are stored.
+
+    Returns:
+    - list: A list of prediction results.
+    """
     clear_session()
     sigmoid = torch.nn.Sigmoid()
 
@@ -224,6 +253,15 @@ def predict(folder_path):
     return full_prediction_data
 
 def extract_audio(file):
+    """
+    Extracts and splits an audio file into multiple segments.
+
+    Parameters:
+    - file (werkzeug.datastructures.FileStorage): The uploaded file object.
+
+    Returns:
+    - str: Path to the folder containing extracted audio clips if successful, None otherwise.
+    """
     split_size = 30000
     audio = AudioSegment.from_file(file)
     if len(audio) < 31000:
@@ -241,6 +279,15 @@ def extract_audio(file):
     return output_folder
 
 def serialize_dict(data):
+    """
+    Recursively converts data structures into serializable formats.
+
+    Parameters:
+    - data (dict, list, np.ndarray, int, float, str, bool): Input data to be serialized.
+
+    Returns:
+    - Various (dict, list, int, float, str): Serialized data ready for JSON or other types of output.
+    """
     if isinstance(data, dict):
         return {key: serialize_dict(value) for key, value in data.items()}
     elif isinstance(data, list):
@@ -253,9 +300,27 @@ def serialize_dict(data):
         return str(data)
     
 def format_time(seconds):
+    """
+    Formats seconds into a minute:second string.
+
+    Parameters:
+    - seconds (int): Number of seconds.
+
+    Returns:
+    - str: Formatted time string.
+    """
     return f"{seconds//60}:{seconds%60:02d}"
 
 def get_nearest_tracks(track_features):
+    """
+    Finds and retrieves nearest tracks from an ANN index based on input features.
+
+    Parameters:
+    - track_features (dict): Features of a track used to find nearest neighbors.
+
+    Returns:
+    - list: List of track information including name, artist, and similarity distance.
+    """
     ann_index = AnnoyIndex(6, 'euclidean')
     ann_index.load('static/data/ANN_tracks_index.ann')
     track_ids, distances = ann_index.get_nns_by_vector(list(islice(track_features.values(), 6)), 9, include_distances=True)
@@ -287,6 +352,15 @@ def get_nearest_tracks(track_features):
     return track_info
 
 def average_dict(dict):
+    """
+    Averages numerical values stored in dictionaries.
+
+    Parameters:
+    - d (dict): Dictionary whose values are lists of numbers.
+
+    Returns:
+    - dict: Dictionary with the same keys and average values.
+    """
     averages = {}
     for item, values in dict.items():
         if isinstance(values, list):
@@ -295,6 +369,16 @@ def average_dict(dict):
     return averages
 
 def get_sub_genre_id(top_genre_id, sub_genre_idx):
+    """
+    Fetches the sub-genre ID based on its index and parent genre ID.
+
+    Parameters:
+    - top_genre_id (int): ID of the top genre.
+    - sub_genre_idx (int): Index of the sub-genre.
+
+    Returns:
+    - int: Sub-genre ID.
+    """
     top_genre_id = top_genre_id[1]
     query = """
     SELECT genre_id FROM genres
@@ -316,87 +400,88 @@ def get_genre_name(genre_id):
     return cursor.fetchone()[0]
 
 def combine_predictions(prediction_list):
+    """
+    Aggregates and processes prediction results from multiple analyzed files.
+
+    Parameters:
+    - prediction_list (list): A list of dictionaries containing predictions for each processed file.
+
+    Effects:
+    - Processes and aggregates genre and feature predictions across multiple files.
+    - Stores combined results in the session for later use in the session context.
+
+    Stores:
+    - Averages of features and genre probabilities in the session.
+    - Detailed genre and sub-genre predictions including the probability distributions.
+    """
     features = {}
-    genre_probabilities = {}
-    genre_counts = Counter()
-    genre_counts = Counter()
     genre_probabilities = defaultdict(list)
+    genre_counts = Counter()
     genre_ids = defaultdict(int)
     sub_genre_counts = Counter()
     sub_genre_probabilities = defaultdict(list)
+    
     for file in prediction_list:
         for prediction in file['top_3_predictions']:
             top_genre_entry = file['top_3_predictions'][prediction]['top_genre']
-            genre = top_genre_entry[0]
-            probability = top_genre_entry[1]
-            genre_counts[genre[0]] += 1
-            genre_probabilities[genre[0]].append(probability)
-            genre_ids[genre[1]] = genre[0]
+            genre, probability = top_genre_entry
+            genre_counts[genre] += 1
+            genre_probabilities[genre].append(probability)
+            genre_ids[genre] = genre
             
             sub_genres_info = file['top_3_predictions'][prediction]['sub_genres']
-            for top3, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
-                sub_genre_counts[top3] += 1
-                sub_genre_probabilities[top3].append(prob)
+            for sub_genre_id, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
+                sub_genre_counts[sub_genre_id] += 1
+                sub_genre_probabilities[sub_genre_id].append(prob)
 
         for feature, value in file["feature_predictions"].items():
-            if feature in features:
-                features[feature].append(value)
-            else:
-                features[feature] = [value]
-
-    # To get the most common genres and sub-genres along with their average probabilities
-    genre_map = app.config['GENRE_MAP']
+            features.setdefault(feature, []).append(value)
 
     feature_averages = average_dict(features)
     genre_averages = average_dict(genre_probabilities)
-
-    genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
-
-    if len(genre_averages) > 5:
-        genre_averages = dict(islice(genre_averages.items(), 5))
+    genre_averages = dict(sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)[:5])
 
     genre_info = {genre: {'probability': prob, 'sub_genres': {}} for genre, prob in genre_averages.items()}
 
     for sub_genre_id, probs in sub_genre_probabilities.items():
-        if sub_genre_id in genre_map:
-            top_genre_id = genre_map[sub_genre_id]
-            if top_genre_id in genre_map:
-                top_genre_name = genre_ids.get(top_genre_id)
-                if top_genre_name in genre_info:
-                    avg_prob = sum(probs) / len(probs) if probs else 0
-                    genre_name = get_genre_name(sub_genre_id)
-                    if 'sub_genres_list' not in genre_info[top_genre_name]:
-                        genre_info[top_genre_name]['sub_genres_list'] = []
-                    genre_info[top_genre_name]['sub_genres_list'].append((genre_name, avg_prob))
+        top_genre_id = app.config['GENRE_MAP'].get(sub_genre_id)
+        if top_genre_id and genre_ids[top_genre_id] in genre_info:
+            avg_prob = sum(probs) / len(probs) if probs else 0
+            genre_name = get_genre_name(sub_genre_id)
+            genre_info[genre_ids[top_genre_id]]['sub_genres'][genre_name] = avg_prob
 
-    for genre_name, genre_data in genre_info.items():
-        sorted_sub_genres = sorted(genre_data.get('sub_genres_list', []), key=lambda x: x[1], reverse=True)[:3]
-        genre_data['sub_genres'] = {name: prob for name, prob in sorted_sub_genres}
+    session['genres'] = genre_info
+    session['features'] = feature_averages
+    session['fileId'] = prediction_list[0]['file_id']
+    
+    plot_feature_over_time(features, prediction_list[0]['file_id'])
 
-    for genre_data in genre_info.values():
-        if 'sub_genres_list' in genre_data:
-            del genre_data['sub_genres_list']
+def plot_feature_over_time(features, file_id):
+    """
+    Plots and saves a graph of music features over time.
 
+    Parameters:
+    - features (dict): Dictionary of features extracted from audio analysis.
+    - file_id (str): Unique identifier for the current file/session used to save the plot.
+    """
     time = np.arange(0, len(next(iter(features.values()))) * 30, 30)
-    time = [format_time(t) for t in time]
+    formatted_time = [format_time(t) for t in time]
     plt.figure(figsize=(14, 10))
     for feature, values in features.items():
-        if feature == "tempo":
-            continue
-        plt.plot(time, values, label = feature)
+        if feature != "tempo":
+            plt.plot(formatted_time, values, label=feature)
     plt.gcf().autofmt_xdate()
     plt.xlabel('Time (seconds)')
     plt.ylabel('Feature Value')
     plt.title('Music Features Over Time')
     plt.legend()
-    plt.savefig("static/images/" + str(prediction_list[0]['file_id']) + "-features" ".png", format='png', bbox_inches='tight')
+    plt.savefig(f"static/images/{file_id}-features.png", format='png', bbox_inches='tight')
     plt.close()
 
-    session['genres'] = genre_info
-    session['features'] = feature_averages
-    session['fileId'] = prediction_list[0]['file_id']
-
 def clear_session():
+    """
+    Clears all session variables related to the current analysis session.
+    """
     if 'beat_grid' in session:
         del session['beat_grid']
     if 'genres' in session:

@@ -11,6 +11,27 @@ from databaseConfig import connect
 db = connect()
 
 class fmaGenreDataset(Dataset):
+    """
+    A custom Dataset class for handling the FMA dataset. Including sub genres.
+
+    Attributes:
+    - dataframe (pd.DataFrame): DataFrame containing metadata or other information related to the tracks.
+    - beats (list): A list where each element corresponds to beat locations in the tracks.
+    - spectrogram (list): A list of spectrogram tensors for the tracks.
+    - mfcc (list): A list of MFCC tensors for the tracks.
+    - id (list): A list of identifiers for each track.
+    - labels (list): A list of labels representing the top genre for each track.
+    - sub_genre_labels (list): A list of labels representing the sub-genre for each track.
+
+    Parameters:
+    - dataframe (pd.DataFrame): Data related to the tracks.
+    - beats (list): Beat information for each track.
+    - spectrogram (list): Spectrograms of the tracks.
+    - mfcc (list): MFCC features of the tracks.
+    - top_genres (list): Top genre labels for each track.
+    - sub_genres (list): Sub-genre labels for each track.
+    - id (list): Identifiers for each track.
+    """
     def __init__(self, dataframe, beats , spectrogram, mfcc, top_genres, sub_genres, id):
         self.dataframe = dataframe
         self.beats = beats
@@ -21,16 +42,33 @@ class fmaGenreDataset(Dataset):
         self.sub_genre_labels = sub_genres
 
     def __len__(self):
+        """
+        Returns the total number of items in the dataset.
+
+        Returns:
+        - int: The total number of samples in the dataset.
+        """
         return len(self.dataframe)
 
     def __getitem__(self, idx):
+        """
+        Retrieves an item from the dataset at the specified index.
+
+        Parameters:
+        - idx (int): Index of the data item to retrieve.
+
+        Returns:
+        - tuple: A tuple containing combined features (torch.Tensor) and the corresponding label.
+        """
         spec = self.spectrogram[idx]
         mfcc = self.mfcc[idx]
         beats = self.beats[idx]
 
+        # Ensure uniform dimensions
         spec = spec[..., :2580]
         mfcc = mfcc[..., :2580]
 
+        # Duplicate channel if necessary
         if mfcc.shape[0] == 1:
             mfcc = mfcc.repeat(2, 1, 1)
         if spec.shape[0] == 1:

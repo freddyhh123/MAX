@@ -28,6 +28,15 @@ class topGenreClassifier(nn.Module):
         self.fc3 = nn.Linear(128, num_classes)
 
     def forward(self, x):
+        """
+        Model forward pass.
+
+        Parameters:
+        - x (torch.Tensor): The input data.
+
+        Returns:
+        - torch.Tensor: The concatenated outputs from each fully connected layer.
+        """
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
         x = self.pool(F.relu(self.bn2(self.conv2(x))))
         x = self.pool2(F.relu(self.bn3(self.conv3(x))))
@@ -39,6 +48,13 @@ class topGenreClassifier(nn.Module):
         return x
 
 def save_ckp(state, is_best):
+    """
+    Saves the model checkpoint and optionally a copy as the best model. This is from Pytorch docs
+
+    Parameters:
+    - state (dict): Dictionary containing model's state dict and optimizer's state dict.
+    - is_best (bool): If True, saves a copy as the best performing model.
+    """
     f_path = 'max_genre_checkpoint.pt'
     torch.save(state, f_path)
     if is_best:
@@ -47,6 +63,22 @@ def save_ckp(state, is_best):
     
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, scaler, epoch, device):
+    """
+    Trains and validates a genre classification model.
+
+    Parameters:
+        model (nn.Module): The genre classification model to be trained.
+        train_loader (DataLoader): DataLoader for the training data.
+        valid_loader (DataLoader): DataLoader for the validation data.
+        criterion (Loss Function): The loss function for optimization.
+        optimizer (Optimizer): The optimizer for model training.
+        scaler (GradScaler): Scaler for gradient amplification.
+        epoch (int): Current epoch number.
+        device (str or torch.device): Device to run the model computation on.
+
+    Returns:
+        dict: Dictionary containing training and validation results.
+    """
     sigmoid = torch.nn.Sigmoid()
     overall_train_loss = list()
     overall_val_loss = list()
