@@ -313,7 +313,6 @@ h3{
   }
   .genrePredictions ol{
     display: flex;
-    align-items: center; 
     flex-direction: column;
   }
   .mobileDownload {
@@ -370,5 +369,16 @@ h3{
   }
   .resultGraphs{
     flex-direction: column-reverse;
+  }
+  .topGenreList {
+    border-right: none;
+    border-bottom: purple solid 3px;
+    padding-right: 0;
+  }
+  .last-top-genre {
+    border-bottom: purple solid 3px;
+  }
+  .topGenre {
+    text-align: left;
   }
 }

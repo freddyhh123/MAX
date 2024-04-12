@@ -103,7 +103,6 @@ def addTracks():
         if type(track[1]['track_genres']) != float and type(track[1]["track_title"]) != float:
             # Make sure we dont have the track (just in case)
             if checkExisting("tracks", "track_id", track[0]) == False:
-                # TODO Finish adding explicit
                 # Insert out track
                 sql = "INSERT INTO tracks (track_id,track_name,file_path,explicit,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s,%s)"
                 # Note, using get_audio_path from the FMA dataset utils code!
