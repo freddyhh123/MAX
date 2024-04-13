@@ -1,101 +1,273 @@
+# Standard Python libs
+import csv
+import json
+import math
+import time
+import uuid
+# Third-party libs
 import mysql.connector
+import pandas as pd
+import torchaudio
+# Local libs
+from databaseConfig import connect
+# This is from the FMA GitHub repository, it is used to
+# properly remove some features from the dataset
+import utils
 
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="root",
-    database="max"
-)
+db = connect()
 
-cursor = cursor = db.cursor()
+cursor = db.cursor()
 
+def test_audio(file):
+    """
+    Attempts to load an audio file..
 
-def addTracks(tracks):
-    for track in tracks:
-        batchId = track['batchId']
-        sql = "SELECT track_id FROM tracks WHERE track_id LIKE '" + \
-            str(track['id']) + "'"
-        cursor.execute(sql)
-        existing = cursor.fetchall()
+    Parameters:
+    - file (str): The identifier (ID) of the file to be tested.
 
-        if not existing:
-            sql = "INSERT INTO features (featureset_id, danceability, energy, `key`, loudness, mode, speechiness, acousticness, instrumentalness, liveleness, valence, tempo, duration) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (track['id'], track['features']['danceability'], track['features']['energy'], track['features']['key'],
-                      track['features']['loudness'], track['features']['mode'], track['features']['speechiness'], track['features']['acousticness'],
-                      track['features']['instrumentalness'], track['features']['liveness'], track['features']['valence'], track['features']['tempo'], track['features']['duration_ms'])
-            cursor.execute(sql, values)
+    Returns:
+    - bool: True if success, False otherwise.
+    """
+    try:
+        file_path = utils.get_audio_path("data",int(file))
+        wav, sample_rate = torchaudio.load(file_path, normalize = True)
+        return True
+    except Exception as e:
+        print(f"Failed to load {file_path}: {e}")
+        return False
 
-            sql = "INSERT INTO tracks (track_id,track_name,preview_url,spotify_url,featureset_id,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
-            values = (track['id'], track['name'], track['preview_url'], track['spotify_url'],
-                      track['id'], track['timestamp'], False, batchId)
-            cursor.execute(sql, values)
-            print("Added " + str(track['name'] + " to track table"))
+def addTracks():
+    """
+    Initializes the database, populates it with data from the FMA dataset,
+    and adds to max database.
+    
+    Parameters:
+    None
+    
+    Returns:
+    None
+    """
+    # Start from scratch, if we are running this, everything is reset!
+    with open("MAXschema.sql", 'r') as schema:
+        script = schema.read()
+    commands = script.split(';')
+    for command in commands:
+        try:
+            if command.strip():
+                cursor.execute(command)
+        except Exception as e:
+            print(f"Error executing command: {command}")
+            print(e)
+            break
+    db.commit()
 
-            for artist in track['artists']:
-                addArtist(artist['artist_id'],
-                          artist['artist_name'], artist['artist_url'])
-                sql = "INSERT INTO artists_tracks VALUES (%s,%s)"
-                values = (artist["artist_id"], track['id'])
+    batchId = str(uuid.uuid1())
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Populate tables from csvs
+    populateArtistTable()
+    populateAlbumTable()
+    populateGenreTable()
+
+    # We need to do our features first as there is a foreign key requirement later
+    # This is also from the FMA dataset utils file!
+    echonest = utils.load('fma_data/echonest.csv')
+    features = echonest['echonest','audio_features']
+    for row in features.iterrows():
+        sql = "INSERT INTO features (featureset_id, danceability, energy, speechiness, acousticness, instrumentalness, liveleness, valence, tempo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        values = (row[0], row[1]['danceability'], row[1]['energy'], row[1]['speechiness'], row[1]['acousticness'], row[1]['instrumentalness'], row[1]['liveness'], row[1]['valence'], row[1]['tempo'])
+        cursor.execute(sql, values)
+    db.commit()
+
+    # Remove some columns for efficiency!
+    columns_to_remove = [
+    "album_url", "artist_name", "artist_url", "artist_website",
+    "license_image_file", "license_parent_id", "track_comments", 
+    "track_composer", "track_copyright_c", "track_copyright_p", 
+    "track_date_created", "track_disc_number", 
+    "track_favorites", "track_file", "track_information", 
+    "track_language_code", "track_lyricist", "track_publisher"
+    ]
+    tracks = pd.read_csv('fma_data/raw_tracks.csv')
+    tracks.drop(columns=columns_to_remove, inplace=True, errors='ignore')
+    # Drop tracks with bad audio files (found using check_files.py)
+    bad_tracks = pd.read_csv('bad_files.csv')
+    bad_tracks['file'] = bad_tracks['file'].astype(str).str.split('.').str[0]
+    bad_tracks['file'] = bad_tracks['file'].astype(str).str.lstrip('0')
+    bad_track_ids = bad_tracks[bad_tracks['file'].isin(tracks['track_id'])]
+    tracks = tracks[~tracks['track_id'].isin(bad_track_ids['file'])]
+
+    for track in tracks.iterrows():
+        # Make sure there is a genre as that is vital! we do a similar check later for album and artist
+        # but as they are not as important to analysis we can keep the tracks and add unknown artist!
+        if type(track[1]['track_genres']) != float and type(track[1]["track_title"]) != float:
+            # Make sure we dont have the track (just in case)
+            if checkExisting("tracks", "track_id", track[0]) == False:
+                # Insert out track
+                sql = "INSERT INTO tracks (track_id,track_name,file_path,explicit,time_added,trained,batch) VALUES (%s,%s,%s,%s,%s,%s,%s)"
+                # Note, using get_audio_path from the FMA dataset utils code!
+                if test_audio(int(track[0])) == False:
+                    continue
+                values = (track[0], track[1]["track_title"], utils.get_audio_path("data",int(track[0])), str(track[1]['track_explicit']), timestamp, False, batchId)
                 cursor.execute(sql, values)
+                print("Added " + str(track[1]["track_title"]) + " to track table")
 
-            for genre in track['genres']:
-                sql = "SELECT * FROM genres WHERE genre_name LIKE '" + genre + "'"
-                cursor.execute(sql)
-                existing = cursor.fetchall()
-                if not existing:
-                    sql = "INSERT INTO genres (genre_name) VALUES ('" + \
-                        genre + "')"
-                    cursor.execute(sql)
-                    print("Added " + genre + " to genres table")
-                    db.commit()
-                rowid = "SELECT genre_id FROM genres WHERE genre_name LIKE '"+ genre +"'"
-                cursor.execute(rowid)
-                rowid = cursor.fetchone()
-                sql = "INSERT INTO track_genres (track_id,genre_id) VALUES ('" + \
-                    track['id']+"',"+str(rowid[0])+")"
-                cursor.execute(sql)
-
-            sql = "SELECT album_id FROM albums WHERE album_id LIKE '" + \
-                str(track['album']['id']) + "'"
-            cursor.execute(sql)
-            existing = cursor.fetchall()
-
-            if not existing:
-                sql = "INSERT INTO albums (album_id,album_name,spotify_url) VALUES (%s,%s,%s)"
-                values = (track['album']['id'], track['album']['name'], track['album']['url'])
-                cursor.execute(sql, values)
-
-                for image in track['album']['images']:
-                    sql = "INSERT INTO album_images (image_url,image_height,image_width) VALUES (%s,%s,%s)"
-                    values = (image['url'], image['height'], image['width'])
+                # Format our genres from json and add!
+                genres = json.loads(track[1]['track_genres'].replace("'", '"'))
+                for genre in genres:
+                    sql = "INSERT INTO track_genres (track_id, genre_id) VALUES (%s, %s)"
+                    values = (track[0], int(genre["genre_id"]))
+                    try:
+                        cursor.execute(sql, values)
+                    except Exception as e:
+                        print("Error - missing genre")
+                        continue
+                
+                # For Artists and albums make sure all data is there and insert!
+                if type(track[1]["artist_id"]) != float and checkExisting("artists","artist_id", int(track[1]["artist_id"])) == True:
+                    sql = "INSERT INTO artists_tracks (artist_id, track_id) VALUES (%s,%s)"
+                    values = (track[1]["artist_id"], track[0])
                     cursor.execute(sql, values)
-                    db.commit()
-                    rowid = "SELECT image_id FROM album_images WHERE image_url LIKE '"+ image['url']+"'"
-                    cursor.execute(rowid)
-                    rowid = cursor.fetchone()
-                    sql = "INSERT INTO image_links (album_id,image_id) VALUES ('" + \
-                        track['album']['id']+"',"+str(rowid[0])+")"
-                    cursor.execute(sql)
+                else:
+                    sql = "INSERT INTO artists_tracks (artist_id, track_id) VALUES (%s, %s)"
+                    values = (101010, track[0])
+                    cursor.execute(sql, values)
+                
+                if type(track[1]['album_id']) != float and checkExisting("albums", "album_id", int(track[1]['album_id'])) == True:
+                    sql = "INSERT INTO album_tracks (track_id, album_id) VALUES (%s, %s)"
+                    values = (track[0], int(track[1]['album_id']))
+                    cursor.execute(sql, values)
+                else:
+                    sql = "INSERT INTO album_tracks (track_id, album_id) VALUES (%s, %s)"
+                    values = (track[0], 101010)
+                    cursor.execute(sql, values)
+    db.commit()
 
-                for artist in track['album']['artists']:
-                    addArtist(artist['artist_id'], artist['artist_name'], artist['artist_url'])
-                    sql = "INSERT INTO artists_albums (artist_id,album_id) VALUES ('" + \
-                        artist['artist_id']+"','"+track['album']['id']+"')"
-                    cursor.execute(sql)
+def checkExisting(table, key, value):
+    """
+    # Helper function to check if something exists in a table.
 
-            sql = "INSERT INTO album_tracks (track_id,album_id) VALUES ('" + \
-                track['id']+"','"+track['album']['id']+"')"
-            cursor.execute(sql)
+    Parameters:
+    - table (str): The name of the table to check.
+    - key (str): The column name to match against.
+    - value (str/int): The value to look for.
 
-        db.commit()
-
+    Returns:
+    - bool: True if the record exists, False otherwise.
+    """
+    sql = "SELECT * FROM " + table + " WHERE "+ key + " = %s"
+    values = (value, )
+    cursor.execute(sql, values)
+    existing = cursor.fetchall()
+    if existing:
+        return True
+    else:
+        return False
 
 def addArtist(id, name, url):
-    sql = "SELECT * FROM artists WHERE artist_id ='" + str(id) + "'"
-    cursor.execute(sql)
-    existing = cursor.fetchall()
+    """
+    Helper function to add Artist.
+
+    Parameters:
+    - id (int): The artist's ID.
+    - name (str): The artist's name.
+    - url (str): The artist's URL.
+
+    Returns:
+    None
+    """
+    existing = checkExisting("artists", "artist_id", id)
     if not existing:
         sql = "INSERT INTO artists VALUES (%s,%s,%s)"
         values = (id, name, url)
         cursor.execute(sql, values)
         print("Added " + str(name + " to artist table"))
+
+
+# Functions to populate various tables, note, these add an "unknown" option for any missing info!
+def populateGenreTable():
+    """
+    Populates the 'genres' table with data from a the FMA dataset.
+
+    Parameters:
+    None
+    
+    Returns:
+    None
+    """
+    with open('fma_data/genres.csv', 'r',encoding='utf-8') as genres:
+        reader = csv.reader(genres)
+        next(reader)
+        for i, genre in enumerate(reader, start=1):
+            cursor.execute("SELECT * FROM genres WHERE genre_id = %s", (genre[0],))
+            exists = cursor.fetchone()
+            if exists:
+                print("This genre ID exists.")
+            else:
+                sql = "INSERT INTO genres (genre_id, genre_parent, top_genre, genre_name) VALUES (%s,%s,%s,%s)"
+                values = (genre[0],genre[2],genre[4],genre[3])
+                cursor.execute(sql, values)
+    print("Genres added")
+    db.commit()
+
+def populateAlbumTable():
+    """
+    Populates the 'albums' table with data from a FMA dataset.
+
+    Parameters:
+    None
+    
+    Returns:
+    None
+    """
+    sql = "INSERT INTO albums (album_id, album_link, album_name) VALUES (%s,%s,%s)"
+    values = (101010, "", "Unknown")
+    cursor.execute(sql, values)
+    with open('fma_data/raw_albums.csv', 'r',encoding='utf-8') as albums:
+        reader = csv.reader(albums)
+        next(reader)
+        for i, album in enumerate(reader, start=1):
+            cursor.execute("SELECT * FROM albums WHERE album_id = %s", (album[0],))
+            exists = cursor.fetchone()
+            if exists:
+                print("This album ID exists.")
+            else:
+                sql = "INSERT INTO albums (album_id, album_link, album_name) VALUES (%s,%s,%s)"
+                values = (album[0], album[15], album[6])
+                cursor.execute(sql, values)
+                cursor.execute("SELECT artist_id FROM artists WHERE artist_name = %s", (album[16],))
+                exists = cursor.fetchone()
+                if exists:
+                    sql = "INSERT INTO artists_albums (artist_id, album_id) VALUES (%s,%s)"
+                    values = (exists[0], album[0])
+                    cursor.execute(sql, values)
+    print("Albums Added")
+    db.commit()
+
+def populateArtistTable():
+    """
+    Populates the 'artists' table with data from FMA dataset.
+
+    Parameters:
+    None
+    
+    Returns:
+    None
+    """
+    sql = "INSERT INTO artists (artist_id, artist_name, artist_url) VALUES (%s,%s,%s)"
+    values = (101010, "Unknown","https://freemusicarchive.org/")
+    cursor.execute(sql, values)
+    with open('fma_data/raw_artists.csv', 'r',encoding='utf-8') as artists:
+        reader = csv.reader(artists)
+        next(reader)
+        for i, artist in enumerate(reader, start=1):
+            cursor.execute("SELECT * FROM artists WHERE artist_id = %s", (artist[0],))
+            exists = cursor.fetchone()
+            if exists:
+                print("This artist ID exists.")
+            else:
+                sql = "INSERT INTO artists (artist_id, artist_name, artist_url) VALUES (%s,%s,%s)"
+                values = (artist[0], artist[11], artist[21])
+                cursor.execute(sql, values)
+    print("Artists Added")
+    db.commit()

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Analysis Results</title>
+</head>
+<body>
+    <header>
+        <h1>Track Analysis</h1>
+    </header>
+    <div class="main-page">
+        <div class="title">
+            <h2> Predictions for:</h2>
+            <h3> {{filename}}</h3>
+        </div>
+        <div class="audioStream">
+            <audio controls>
+                <source aria-label="Play audio" src="{{ url_for('stream_audio') }}" type="audio/mp3">
+                Your browser does not support the audio element.
+            </audio>
+        </div>        
+        <div class="predictions">
+            <div class="genrePredictions">
+                <h3>Genre Predictions:</h3>
+                <ol class="topGenres">
+                    {% for genre, details in genres.items() %}
+                        <li class="topGenreList{{ 'last-top-genre' if loop.last }}">
+                            <p class="topGenre">{{ genre }}: {{ details.probability }}%</p>
+                            <ul class="subGenres">
+                                {% for sub_genre, sub_prob in details.sub_genres.items() %}
+                                    <li>{{ sub_genre }}: {{ sub_prob|round(2) }}%</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endfor %}
+                </ol>         
+            </div>            
+            <div class="featurePredictions">
+                <h3>Feature Predictions:</h3>
+                <ol>
+                    {% for feature, (score) in features.items() %}
+                        <li>{{ feature }}: {{ score }}</li>
+                    {% endfor %}
+                </ol>            
+            </div>
+        </div>
+        <div class="featureGraph">
+            <img class="graphImage" src="{{ url_for('static', filename='images/' + file_id + '-features' + '.png') }}" alt="Audio features over time">
+            <a aria-label="Download graph image" class="mobileDownload" href="{{ url_for('static', filename='images/' + file_id + '-features' + '.png') }}" download="Features-Graph.png">Download Graph</a>
+        </div>
+        <div class="midSection">
+            <div class="trackRecomendations">
+                <h2>Closest Tracks</h2>
+                <p>These are the closest tracks to yours from our database</p>
+                <ul>
+                    {% for track in nearest_track_info %}
+                                <li>
+                                    <p>{{ track[0] }}</p> 
+                                    {% if track[3] %} <p>Artist: </p> <a href="{{ track[3] }}">{{ track[2]| replace('_', ' ') }}</a>
+                                    {% else %} <p>Artist: {{ track[2] }}</p>
+                                    {% endif %}
+                                    {% if track[5] %} <p>Album: </p> <a href="{{ track[5] }}">{{ track[4] }}</a> 
+                                    {% else %} <p>Album: {{ track[4] }}</p>
+                                    {% endif %}
+                                    {% if track[1] != 'nan' %}
+                                    {{ track[1] }}
+                                    {% endif %}
+                                </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class = "webChart">
+                <div class="featureComparison">
+                    <h2>Feature Comparison Chart</h2>
+                    <div class="genreSelect">
+                        <label for="genreSelector">Select Genre:</label>
+                        <select aria-label="Selector for genres" id="genreSelector">
+                        </select>
+                    </div>
+                    <canvas id="featureChart" width="400" height="400"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class = "infoSection">
+            <h2>How is the audio analysed?</h2>
+            <p>Audio is analysed using a Mel spectrogram, MFCC and A rhythmic feature, here are some details on 2 of those (these examples are taken from your uploaded track!)</p>
+        </div>
+        <div class="resultGraphs">
+            <div class="beatGrid">
+                <div class="graphInfo">
+                    <h3>Beat Vector</h3>
+                    <p>This is how rhythm is incorporated into the models, each dot is a frame and the purple dots are an estimated beat. This is only a very small section of the track.</p>
+                </div>
+                <div class="beatVisualization">
+                    {% set total_frames = 2580 %}
+                    {% for i in range(total_frames) %}
+                        <div class="beatDot {% if i in beat_grid %}active{% endif %}"></div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="melSpec">
+                <div class="graphInfo">
+                    <h3>Mel Spectrogram</h3>
+                    <p>This is part of what is used for analysis, a Mel spectrogram is a representation of audio that is scaled to the Mel scale, this closely models human hearing. The Y scale is frequency, the X scale is time and the color is the volume.</p>
+                </div>
+                <img src="{{ url_for('static', filename='images/' + file_id + '.png') }}" alt="Mel Spectrogram" class="melSpecImage">
+            </div>
+        </div>        
+    </div>
+    <script>
+        const jsonFilePath = '/static/data/genre_averages.json';
+        var userTrackData = JSON.parse('{{ chart_data|safe }}');
+        var genreSelector = document.getElementById('genreSelector');
+        var chart;
+
+        fetch(jsonFilePath)
+            .then(response => response.json())
+            .then(data => {
+                var averageGenreFeatures = data;
+
+                Object.keys(averageGenreFeatures).forEach(function(genre) {
+                    var option = document.createElement('option');
+                    option.value = genre;
+                    option.text = averageGenreFeatures[genre][1];
+                    genreSelector.appendChild(option);
+                });
+
+                if (genreSelector.options.length > 0) {
+                    updateChart(genreSelector.options[genreSelector.selectedIndex].value);
+                }
+            })
+            .catch(error => console.error('Error fetching genre averages:', error));
+
+            function updateChart(genre) {
+            fetch(jsonFilePath)
+                .then(response => response.json())
+                .then(data => {
+                    var averageGenreFeatures = data;
+                    var genreData = averageGenreFeatures[genre].slice(2).map(Number);
+                    if (chart) {
+                        chart.destroy();
+                    }
+                    chart = new Chart(document.getElementById('featureChart').getContext('2d'), {
+                        type: 'radar',
+                        data: {
+                            labels: ['Acousticness', 'Danceability', 'Energy', 'Instrumentalness', 'Liveness', 'Speechiness', 'Valence'],
+                            datasets: [{
+                                label: 'User Track Data',
+                                data: userTrackData,
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            }, {
+                                label: 'Genre Average - ' + averageGenreFeatures[genre][1],
+                                data: genreData,
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scale: {
+                                ticks: { beginAtZero: true }
+                            }
+                        }
+                    });
+                });
+        }
+
+        genreSelector.addEventListener('change', function() {
+            updateChart(this.value);
+        });
+    </script>
+</body>
+</html>

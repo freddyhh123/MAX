@@ -161,6 +161,21 @@ cython_debug/
 
 /audio
 /images
+/.idea
 
 *.wav
+*.mp3
+
 *.png
+*.csv
+
+/fma_data*
+/data/*
+
+*.pkl
+*.pth
+*.pt
+
+*.rar
+
+test.py

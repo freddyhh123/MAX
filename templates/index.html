@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Classification</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.7.2/min/dropzone.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.7.2/min/dropzone.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Max: an audio analysis model</h1>
+    </header>
+    <p class="subText">Upload An MP3 file and it will be ran through MAX, a set of Artificial intelligence models trained with over 10,000 songs! (15mb Max)</p>
+    <div class="uploadForm">
+        <form action="/upload" class="dropzone" id="audio_upload"></form>
+        <button id="uploadFileButton">Upload for analysis!</button>
+    </div>
+    <script>
+        Dropzone.autoDiscover = false;
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            var audio_upload = new Dropzone("#audio_upload", {
+                maxFilesize: 15,
+                acceptedFiles: 'audio/mpeg',
+                autoProcessQueue: false,
+                maxFiles: 1,
+                init: function() {
+                    this.on("maxfilesexceeded", function(file) {
+                        alert("You can only upload a maximum of 1 file.");
+                        this.removeFile(file);
+                    });
+                    this.on("success", function(file, responseText) {
+                        if(responseText && responseText.redirect) {
+                            window.location.href = responseText.redirect;
+                        } else {
+                            window.location.href = "/results";
+                        }
+                    });
+                    this.on("error", function(file, response) {
+                        if(typeof response === 'object' && response.message) {
+                            alert(response.message);
+                        } else if (typeof response === 'string') {
+                            alert(response);
+                        } else {
+                            alert("An error occurred. Please try again.");
+                        }
+                    });
+                }
+            });
+        
+            document.getElementById("uploadFileButton").addEventListener("click", function() {
+                audio_upload.processQueue();
+            });
+        });
+        </script>
+        
+</body>
+</html>

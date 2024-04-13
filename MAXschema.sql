@@ -1,10 +1,12 @@
+DROP SCHEMA IF EXISTS max;
+CREATE SCHEMA max;
+USE max;
 
 CREATE TABLE `tracks` (
   `track_id` varchar(30) PRIMARY KEY,
   `track_name` varchar(255),
-  `preview_url` varchar(255),
-  `spotify_url` varchar(255),
-  `featureset_id` varchar(30),
+  `file_path` varchar(255),
+  `explicit` varchar(255),
   `time_added` timestamp,
   `trained` boolean,
   `batch` varchar(50)
@@ -14,18 +16,13 @@ CREATE TABLE `features` (
   `featureset_id` varchar(30) PRIMARY KEY,
   `danceability` float,
   `energy` float,
-  `key` float,
-  `loudness` float,
-  `mode` float,
   `speechiness` float,
   `acousticness` float,
   `instrumentalness` float,
   `liveleness` float,
   `valence` float,
-  `tempo` float,
-  `duration` float
+  `tempo` float
 );
-ALTER TABLE `tracks` ADD FOREIGN KEY (`featureset_id`) REFERENCES `features` (`featureset_id`);
 
 CREATE TABLE `artists` (
   `artist_id` varchar(30) PRIMARY KEY,
@@ -34,24 +31,17 @@ CREATE TABLE `artists` (
 );
 
 CREATE TABLE `genres` (
-  `genre_id` integer PRIMARY KEY AUTO_INCREMENT,
+  `genre_id` integer PRIMARY KEY,
+  `genre_parent` integer,
+  `top_genre` integer,
   `genre_name` varchar(255)
 );
 
-
 CREATE TABLE `albums` (
   `album_id` varchar(30) PRIMARY KEY,
-  `album_name` varchar(255),
-  `spotify_url` varchar(255)
+  `album_link` varchar(255),
+  `album_name` varchar(255)
 );
-
-CREATE TABLE `album_images` (
-  `image_id` integer PRIMARY KEY AUTO_INCREMENT,
-  `image_url` varchar(255),
-  `image_height` integer,
-  `image_width` integer
-);
-
 
 CREATE TABLE `track_genres` (
   `track_id` varchar(30),
@@ -83,10 +73,3 @@ CREATE TABLE `album_tracks` (
 );
 ALTER TABLE `album_tracks` ADD FOREIGN KEY (`track_id`) REFERENCES `tracks` (`track_id`);
 ALTER TABLE `album_tracks` ADD FOREIGN KEY (`album_id`) REFERENCES `albums` (`album_id`);
-
-CREATE TABLE `image_links` (
-  `album_id` varchar(30),
-  `image_id` integer
-);
-ALTER TABLE `image_links` ADD FOREIGN KEY (`album_id`) REFERENCES `albums` (`album_id`);
-ALTER TABLE `image_links` ADD FOREIGN KEY (`image_id`) REFERENCES `album_images` (`image_id`);
