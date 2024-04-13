@@ -57,7 +57,7 @@
                     {% for track in nearest_track_info %}
                                 <li>
                                     <p>{{ track[0] }}</p> 
-                                    {% if track[3] %} <p>Artist: </p> <a href="{{ track[2] }}">{{ track[2]| replace('_', ' ') }}</a>
+                                    {% if track[3] %} <p>Artist: </p> <a href="{{ track[3] }}">{{ track[2]| replace('_', ' ') }}</a>
                                     {% else %} <p>Artist: {{ track[2] }}</p>
                                     {% endif %}
                                     {% if track[5] %} <p>Album: </p> <a href="{{ track[5] }}">{{ track[4] }}</a> 

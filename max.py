@@ -415,40 +415,63 @@ def combine_predictions(prediction_list):
     - Detailed genre and sub-genre predictions including the probability distributions.
     """
     features = {}
-    genre_probabilities = defaultdict(list)
     genre_counts = Counter()
+    genre_probabilities = defaultdict(list)
     genre_ids = defaultdict(int)
     sub_genre_counts = Counter()
     sub_genre_probabilities = defaultdict(list)
-    
     for file in prediction_list:
         for prediction in file['top_3_predictions']:
             top_genre_entry = file['top_3_predictions'][prediction]['top_genre']
-            genre, probability = top_genre_entry
-            genre_counts[genre] += 1
-            genre_probabilities[genre].append(probability)
-            genre_ids[genre] = genre
+            genre = top_genre_entry[0]
+            probability = top_genre_entry[1]
+            genre_counts[genre[0]] += 1
+            genre_probabilities[genre[0]].append(probability)
+            genre_ids[genre[1]] = genre[0]
             
             sub_genres_info = file['top_3_predictions'][prediction]['sub_genres']
-            for sub_genre_id, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
-                sub_genre_counts[sub_genre_id] += 1
-                sub_genre_probabilities[sub_genre_id].append(prob)
+            for top3, prob in zip(sub_genres_info['top3_genres'], sub_genres_info['top3_probabilities'][0]):
+                sub_genre_counts[top3] += 1
+                sub_genre_probabilities[top3].append(prob)
 
         for feature, value in file["feature_predictions"].items():
-            features.setdefault(feature, []).append(value)
+            if feature in features:
+                features[feature].append(value)
+            else:
+                features[feature] = [value]
+
+    # To get the most common genres and sub-genres along with their average probabilities
+    genre_map = app.config['GENRE_MAP']
 
     feature_averages = average_dict(features)
     genre_averages = average_dict(genre_probabilities)
-    genre_averages = dict(sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)[:5])
+
+    genre_averages = {k: v for k, v in sorted(genre_averages.items(), key=lambda item: item[1], reverse=True)}
+
+    if len(genre_averages) > 5:
+        genre_averages = dict(islice(genre_averages.items(), 5))
 
     genre_info = {genre: {'probability': prob, 'sub_genres': {}} for genre, prob in genre_averages.items()}
 
     for sub_genre_id, probs in sub_genre_probabilities.items():
-        top_genre_id = app.config['GENRE_MAP'].get(sub_genre_id)
-        if top_genre_id and genre_ids[top_genre_id] in genre_info:
-            avg_prob = sum(probs) / len(probs) if probs else 0
-            genre_name = get_genre_name(sub_genre_id)
-            genre_info[genre_ids[top_genre_id]]['sub_genres'][genre_name] = avg_prob
+        if sub_genre_id in genre_map:
+            top_genre_id = genre_map[sub_genre_id]
+            if top_genre_id in genre_map:
+                top_genre_name = genre_ids.get(top_genre_id)
+                if top_genre_name in genre_info:
+                    avg_prob = sum(probs) / len(probs) if probs else 0
+                    genre_name = get_genre_name(sub_genre_id)
+                    if 'sub_genres_list' not in genre_info[top_genre_name]:
+                        genre_info[top_genre_name]['sub_genres_list'] = []
+                    genre_info[top_genre_name]['sub_genres_list'].append((genre_name, avg_prob))
+
+    for genre_name, genre_data in genre_info.items():
+        sorted_sub_genres = sorted(genre_data.get('sub_genres_list', []), key=lambda x: x[1], reverse=True)[:3]
+        genre_data['sub_genres'] = {name: prob for name, prob in sorted_sub_genres}
+
+    for genre_data in genre_info.values():
+        if 'sub_genres_list' in genre_data:
+            del genre_data['sub_genres_list']
 
     session['genres'] = genre_info
     session['features'] = feature_averages
