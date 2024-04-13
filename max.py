@@ -38,16 +38,16 @@ script_path = os.path.abspath(__file__)
 base_path = os.path.dirname(script_path)
 
 genre_model = topGenreClassifier()
-genre_model.load_state_dict(torch.load('max_genre_v5.pth'))
+genre_model.load_state_dict(torch.load(os.path.join("static","data","models",'max_genre_v5.pth')))
 genre_model.eval()
 
 feature_model = audioFeatureModel()
-feature_model.load_state_dict(torch.load('max_feature_v4.pth'))
+feature_model.load_state_dict(torch.load(os.path.join("static","data","models",'max_feature_v4.pth')))
 feature_model.eval()
 
 
 sub_genre_models = initialize_sub_genre_models()
-""" sub_genre_path = os.path.join("static","data","models","sub_models")
+sub_genre_path = os.path.join("static","data","models","sub_models")
 for file in os.listdir(sub_genre_path):
     filename = os.fsdecode(file)
     if filename.endswith(".pth"):
@@ -57,7 +57,7 @@ for file in os.listdir(sub_genre_path):
         model.eval()
         sub_genre_models[id] = model
     else:
-        continue """
+        continue
 
 genre_features = []
 with open("genre_averages.csv", 'r') as file:
