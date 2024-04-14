@@ -1,10 +1,11 @@
 import os
 import unittest
 import tempfile
-from flask import Flask, json
 import io
 from max import app
-from werkzeug.datastructures import FileStorage
+from io import BytesIO
+from pydub import AudioSegment
+from max import extract_audio
 
 class FlaskAppTestCase(unittest.TestCase):
     def setUp(self):
@@ -50,6 +51,12 @@ class FlaskAppTestCase(unittest.TestCase):
             response = c.get('/stream-audio')
         self.assertEqual(response.status_code, 200)
         self.assertIn('audio/mpeg', response.content_type)
+
+    def test_short_audio_file(self):
+            path = os.path.join('Tests', 'audio', 'small.mp3')
+            with self.subTest("Check for handling of short audio"):
+                folder_path = extract_audio(path)
+                self.assertIsNone(folder_path, "The system should return None for an audio file shorter than 30 seconds")
 
 if __name__ == '__main__':
     unittest.main()
